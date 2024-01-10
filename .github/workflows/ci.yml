@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  # Go version we currently use to build containerd across all CI.
+  # Note: don't forget to update `Binaries` step, as it contains the matrix of all supported Go versions.
+  GO_VERSION: "1.21.0"
+
+permissions: # added using https://github.com/step-security/secure-workflows
+  contents: read
+
+jobs:
+
+  #
+  # golangci-lint
+  #
+  linters:
+    permissions:
+      contents: read # for actions/checkout to fetch code
+      pull-requests: read # for golangci/golangci-lint-action to fetch pull requests
+    name: Linters
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-12, windows-2022]
+
+    steps:
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false # see actions/setup-go#368
+
+      - uses: actions/checkout@v3
+      - uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.52.2
+          skip-cache: true
+          args: --timeout=5m
+
+  #
+  # Project checks
+  #
+  project:
+    name: Project Checks
+    if: github.repository == 'containerd/platforms'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false # see actions/setup-go#368
+
+      - uses: actions/checkout@v3
+        with:
+          path: src/github.com/containerd/platforms
+          fetch-depth: 25
+
+      - uses: containerd/project-checks@v1.1.0
+        with:
+          working-directory: src/github.com/containerd/platforms
+          repo-access-token: ${{ secrets.GITHUB_TOKEN }}
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: src/github.com/containerd/platforms
+
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Set env
+        shell: bash
+        run: |
+          echo "GOPATH=${{ github.workspace }}" >> $GITHUB_ENV
+          echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
+
+      - run: |
+          go test -v -race
+        working-directory: src/github.com/containerd/platforms
