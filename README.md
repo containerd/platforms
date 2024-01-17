@@ -14,8 +14,8 @@ context and much can be inferred. To solve this problem, this package introduces
 operating system or the architecture or both.
 
 An example of a common specifier is `linux/amd64`. If the host has a default
-of runtime that matches this, the user can simply provide the component that
-matters. For example, if a image provides amd64 and arm64 support, the
+runtime that matches this, the user can simply provide the component that
+matters. For example, if an image provides `amd64` and `arm64` support, the
 operating system, `linux` can be inferred, so they only have to provide
 `arm64` or `amd64`. Similar behavior is implemented for operating systems,
 where the architecture may be known but a runtime may support images from
