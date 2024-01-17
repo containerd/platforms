@@ -2,7 +2,7 @@
 
 A Go package for formatting, normalizing and matching container platforms.
 
-This package is based on the Open Containers Image Spec definition of a (platform)[https://github.com/opencontainers/image-spec/blob/main/specs-go/v1/descriptor.go#L52].
+This package is based on the Open Containers Image Spec definition of a [platform](https://github.com/opencontainers/image-spec/blob/main/specs-go/v1/descriptor.go#L52).
 
 ## Platform Specifier
 
