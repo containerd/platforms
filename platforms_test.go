@@ -37,11 +37,12 @@ func TestParseSelector(t *testing.T) {
 	}
 
 	for _, testcase := range []struct {
-		skip      bool
-		input     string
-		expected  specs.Platform
-		matches   []specs.Platform
-		formatted string
+		skip        bool
+		input       string
+		expected    specs.Platform
+		matches     []specs.Platform
+		formatted   string
+		useV2Format bool
 	}{
 		// While wildcards are a valid use case for platform selection,
 		// addressing these cases is outside the initial scope for this
@@ -54,7 +55,8 @@ func TestParseSelector(t *testing.T) {
 				OS:           "*",
 				Architecture: "*",
 			},
-			formatted: "*/*",
+			formatted:   "*/*",
+			useV2Format: false,
 		},
 		{
 			skip:  true,
@@ -63,7 +65,8 @@ func TestParseSelector(t *testing.T) {
 				OS:           "linux",
 				Architecture: "*",
 			},
-			formatted: "linux/*",
+			formatted:   "linux/*",
+			useV2Format: false,
 		},
 		{
 			skip:  true,
@@ -88,7 +91,8 @@ func TestParseSelector(t *testing.T) {
 					Variant:      "v8",
 				},
 			},
-			formatted: "*/arm64",
+			formatted:   "*/arm64",
+			useV2Format: false,
 		},
 		{
 			input: "linux/arm64",
@@ -112,7 +116,8 @@ func TestParseSelector(t *testing.T) {
 					Variant:      "v8",
 				},
 			},
-			formatted: "linux/arm64",
+			formatted:   "linux/arm64",
+			useV2Format: false,
 		},
 		{
 			input: "linux/arm64/v8",
@@ -136,7 +141,8 @@ func TestParseSelector(t *testing.T) {
 					Architecture: "arm64",
 				},
 			},
-			formatted: "linux/arm64/v8",
+			formatted:   "linux/arm64/v8",
+			useV2Format: false,
 		},
 		{
 			// NOTE(stevvooe): In this case, the consumer can assume this is v7
@@ -163,7 +169,8 @@ func TestParseSelector(t *testing.T) {
 					Variant:      "7",
 				},
 			},
-			formatted: "linux/arm",
+			formatted:   "linux/arm",
+			useV2Format: false,
 		},
 		{
 			input: "linux/arm/v6",
@@ -178,7 +185,8 @@ func TestParseSelector(t *testing.T) {
 					Architecture: "armel",
 				},
 			},
-			formatted: "linux/arm/v6",
+			formatted:   "linux/arm/v6",
+			useV2Format: false,
 		},
 		{
 			input: "linux/arm/v7",
@@ -197,7 +205,8 @@ func TestParseSelector(t *testing.T) {
 					Architecture: "armhf",
 				},
 			},
-			formatted: "linux/arm/v7",
+			formatted:   "linux/arm/v7",
+			useV2Format: false,
 		},
 		{
 			input: "arm",
@@ -205,7 +214,8 @@ func TestParseSelector(t *testing.T) {
 				OS:           defaultOS,
 				Architecture: "arm",
 			},
-			formatted: path.Join(defaultOS, "arm"),
+			formatted:   path.Join(defaultOS, "arm"),
+			useV2Format: false,
 		},
 		{
 			input: "armel",
@@ -214,7 +224,8 @@ func TestParseSelector(t *testing.T) {
 				Architecture: "arm",
 				Variant:      "v6",
 			},
-			formatted: path.Join(defaultOS, "arm/v6"),
+			formatted:   path.Join(defaultOS, "arm/v6"),
+			useV2Format: false,
 		},
 		{
 			input: "armhf",
@@ -222,7 +233,8 @@ func TestParseSelector(t *testing.T) {
 				OS:           defaultOS,
 				Architecture: "arm",
 			},
-			formatted: path.Join(defaultOS, "arm"),
+			formatted:   path.Join(defaultOS, "arm"),
+			useV2Format: false,
 		},
 		{
 			input: "Aarch64",
@@ -230,7 +242,8 @@ func TestParseSelector(t *testing.T) {
 				OS:           defaultOS,
 				Architecture: "arm64",
 			},
-			formatted: path.Join(defaultOS, "arm64"),
+			formatted:   path.Join(defaultOS, "arm64"),
+			useV2Format: false,
 		},
 		{
 			input: "x86_64",
@@ -238,7 +251,8 @@ func TestParseSelector(t *testing.T) {
 				OS:           defaultOS,
 				Architecture: "amd64",
 			},
-			formatted: path.Join(defaultOS, "amd64"),
+			formatted:   path.Join(defaultOS, "amd64"),
+			useV2Format: false,
 		},
 		{
 			input: "Linux/x86_64",
@@ -246,7 +260,8 @@ func TestParseSelector(t *testing.T) {
 				OS:           "linux",
 				Architecture: "amd64",
 			},
-			formatted: "linux/amd64",
+			formatted:   "linux/amd64",
+			useV2Format: false,
 		},
 		{
 			input: "i386",
@@ -254,7 +269,8 @@ func TestParseSelector(t *testing.T) {
 				OS:           defaultOS,
 				Architecture: "386",
 			},
-			formatted: path.Join(defaultOS, "386"),
+			formatted:   path.Join(defaultOS, "386"),
+			useV2Format: false,
 		},
 		{
 			input: "linux",
@@ -263,7 +279,8 @@ func TestParseSelector(t *testing.T) {
 				Architecture: defaultArch,
 				Variant:      defaultVariant,
 			},
-			formatted: path.Join("linux", defaultArch, defaultVariant),
+			formatted:   path.Join("linux", defaultArch, defaultVariant),
+			useV2Format: false,
 		},
 		{
 			input: "s390x",
@@ -271,7 +288,8 @@ func TestParseSelector(t *testing.T) {
 				OS:           defaultOS,
 				Architecture: "s390x",
 			},
-			formatted: path.Join(defaultOS, "s390x"),
+			formatted:   path.Join(defaultOS, "s390x"),
+			useV2Format: false,
 		},
 		{
 			input: "linux/s390x",
@@ -279,7 +297,8 @@ func TestParseSelector(t *testing.T) {
 				OS:           "linux",
 				Architecture: "s390x",
 			},
-			formatted: "linux/s390x",
+			formatted:   "linux/s390x",
+			useV2Format: false,
 		},
 		{
 			input: "macOS",
@@ -288,7 +307,41 @@ func TestParseSelector(t *testing.T) {
 				Architecture: defaultArch,
 				Variant:      defaultVariant,
 			},
-			formatted: path.Join("darwin", defaultArch, defaultVariant),
+			formatted:   path.Join("darwin", defaultArch, defaultVariant),
+			useV2Format: false,
+		},
+		{
+			input: "windows",
+			expected: specs.Platform{
+				OS:           "windows",
+				OSVersion:    "",
+				Architecture: defaultArch,
+				Variant:      defaultVariant,
+			},
+			formatted:   path.Join("windows", defaultArch, defaultVariant),
+			useV2Format: false,
+		},
+		{
+			input: "windows()",
+			expected: specs.Platform{
+				OS:           "windows",
+				OSVersion:    "",
+				Architecture: defaultArch,
+				Variant:      defaultVariant,
+			},
+			formatted:   path.Join("windows", defaultArch, defaultVariant),
+			useV2Format: true,
+		},
+		{
+			input: "windows(10.0.17763)",
+			expected: specs.Platform{
+				OS:           "windows",
+				OSVersion:    "10.0.17763",
+				Architecture: defaultArch,
+				Variant:      defaultVariant,
+			},
+			formatted:   path.Join("windows(10.0.17763)", defaultArch, defaultVariant),
+			useV2Format: true,
 		},
 	} {
 		t.Run(testcase.input, func(t *testing.T) {
@@ -316,7 +369,12 @@ func TestParseSelector(t *testing.T) {
 				}
 			}
 
-			formatted := Format(p)
+			formatted := ""
+			if testcase.useV2Format == false {
+				formatted = Format(p)
+			} else {
+				formatted = FormatAll(p)
+			}
 			if formatted != testcase.formatted {
 				t.Fatalf("unexpected format: %q != %q", formatted, testcase.formatted)
 			}
@@ -327,8 +385,14 @@ func TestParseSelector(t *testing.T) {
 				t.Fatalf("error parsing formatted output: %v", err)
 			}
 
-			if Format(reparsed) != formatted {
-				t.Fatalf("normalized output did not survive the round trip: %v != %v", Format(reparsed), formatted)
+			if testcase.useV2Format == false {
+				if Format(reparsed) != formatted {
+					t.Fatalf("normalized output did not survive the round trip: %v != %v", Format(reparsed), formatted)
+				}
+			} else {
+				if FormatAll(reparsed) != formatted {
+					t.Fatalf("normalized output did not survive the round trip: %v != %v", FormatAll(reparsed), formatted)
+				}
 			}
 		})
 	}
