@@ -38,7 +38,7 @@ func TestDefault(t *testing.T) {
 	}
 
 	s := DefaultString()
-	if s != Format(p) {
+	if s != FormatV2(p) {
 		t.Fatalf("default specifier should match formatted default spec: %v != %v", s, p)
 	}
 }

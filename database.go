@@ -59,6 +59,27 @@ func isKnownArch(arch string) bool {
 	return false
 }
 
+// normalizeOSAndVersion splits the provided platform specifier OS segment
+// into an OS and OSVersion.
+// The expected format is `<OS>[(<OSVersion>)]`, e.g., `windows(10.0.17763)`.
+// If `<os>` is not provided, the current host OS is returned as the first value.
+// If optional `(<OSVersion>)` is not provided, an empty string is returned as the
+// second value.
+func normalizeOSAndVersion(OSAndVersion string) (OS string, OSVersion string) {
+	if OSAndVersion == "" {
+		return runtime.GOOS, ""
+	}
+
+	parts := osAndVersionRe.Split(OSAndVersion, -1)
+	OS = normalizeOS(parts[0])
+	OSVersion = ""
+	if len(parts) > 1 && parts[1] != "" {
+		OSVersion = normalizeOSVersion(parts[1])
+	}
+
+	return OS, OSVersion
+}
+
 func normalizeOS(os string) string {
 	if os == "" {
 		return runtime.GOOS
@@ -70,6 +91,13 @@ func normalizeOS(os string) string {
 		os = "darwin"
 	}
 	return os
+}
+
+func normalizeOSVersion(OSVersion string) string {
+	if OSVersion == "" {
+		return ""
+	}
+	return OSVersion
 }
 
 // normalizeArch normalizes the architecture.
