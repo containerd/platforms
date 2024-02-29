@@ -41,3 +41,23 @@ func Default() MatchComparer {
 		Variant: cpuVariant(),
 	})
 }
+
+// MaximumSpec returns the current platform's maximum platform specification.
+func MaximumSpec() specs.Platform {
+	return specs.Platform{
+		OS:           runtime.GOOS,
+		Architecture: runtime.GOARCH,
+		// The Variant field will be empty if arch != ARM and AMD64.
+		Variant: cpuVariantMaximum(),
+	}
+}
+
+// Maximum returns the maximum matcher for the platform.
+func Maximum() MatchComparer {
+	return Ordered(MaximumSpec(), specs.Platform{
+		OS:           "linux",
+		Architecture: runtime.GOARCH,
+		// The Variant field will be empty if arch != ARM and AMD64.
+		Variant: cpuVariantMaximum(),
+	})
+}
