@@ -23,7 +23,7 @@ import (
 	"runtime"
 )
 
-func getCPUVariant() (string, error) {
+func getArmCPUVariant() (string, error) {
 
 	var variant string
 
@@ -48,8 +48,13 @@ func getCPUVariant() (string, error) {
 			variant = "unknown"
 		}
 	} else {
-		return "", fmt.Errorf("getCPUVariant for OS %s: %v", runtime.GOOS, errNotImplemented)
+		return "", fmt.Errorf("getArmCPUVariant for OS %s: %v", runtime.GOOS, errNotImplemented)
 	}
 
 	return variant, nil
+}
+
+func getAmd64MicroArchLevel() (string, error) {
+	// not supported on non-Linux platforms
+	return "", nil
 }
