@@ -29,7 +29,7 @@ func TestCPUVariant(t *testing.T) {
 
 	variants := []string{"v8", "v7", "v6", "v5", "v4", "v3"}
 
-	p, err := getCPUVariant()
+	p, err := getArmCPUVariant()
 	if err != nil {
 		t.Fatalf("Error getting CPU variant: %v", err)
 		return
@@ -136,4 +136,27 @@ func TestGetCPUVariantFromArch(t *testing.T) {
 		})
 
 	}
+}
+
+func TestGetAmd64MicroArchLevel(t *testing.T) {
+	if !isAmd64Arch(runtime.GOARCH) {
+		t.Skip("only relevant on linux/amd64")
+	}
+
+	supportedLevels := []string{"v1", "v2", "v3", "v4"}
+
+	actualLevel, err := getAmd64MicroArchLevel()
+	if err != nil {
+		t.Fatalf("Error getting AMD64 micro architecture level: %v", err)
+		return
+	}
+
+	for _, level := range supportedLevels {
+		if actualLevel == level {
+			t.Logf("got valid micro architecture level as expected: %#v = %#v", actualLevel, level)
+			return
+		}
+	}
+
+	t.Fatalf("could not get valid micro architecture levels as expected: %v", supportedLevels)
 }
