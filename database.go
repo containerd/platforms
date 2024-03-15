@@ -59,6 +59,8 @@ func isKnownArch(arch string) bool {
 	return false
 }
 
+// normalizeOS returns the normalized OS. If the os is empty, it returns
+// [runtime.GOOS].
 func normalizeOS(os string) string {
 	if os == "" {
 		return runtime.GOOS
