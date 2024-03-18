@@ -106,12 +106,12 @@ func getCPUVariantFromArch(arch string) (string, error) {
 	return variant, nil
 }
 
-// getCPUVariant returns cpu variant for ARM
+// getArmCPUVariant returns cpu variant for ARM
 // We first try reading "Cpu architecture" field from /proc/cpuinfo
 // If we can't find it, then fall back using a system call
 // This is to cover running ARM in emulated environment on x86 host as this field in /proc/cpuinfo
 // was not present.
-func getCPUVariant() (string, error) {
+func getArmCPUVariant() (string, error) {
 	variant, err := getCPUInfo("Cpu architecture")
 	if err != nil {
 		if errors.Is(err, errNotFound) {
@@ -157,4 +157,41 @@ func getCPUVariant() (string, error) {
 	}
 
 	return variant, nil
+}
+
+func getAmd64MicroArchLevel() (string, error) {
+	flags, err := getCPUInfo("flags")
+	if errors.Is(err, errNotFound) {
+		return "", fmt.Errorf("failure getting CPU flags: %v", err)
+	}
+
+	containsAll := func(set map[string]interface{}, toMatch []string) bool {
+		for _, m := range toMatch {
+			if _, ok := set[m]; !ok {
+				return false
+			}
+		}
+		return true
+	}
+
+	flagSet := map[string]interface{}{}
+	for _, flag := range strings.Split(flags, " ") {
+		flagSet[flag] = true
+	}
+
+	// https://unix.stackexchange.com/questions/631217/how-do-i-check-if-my-cpu-supports-x86-64-v2
+	level := 1
+	if containsAll(flagSet, []string{"lm", "cmov", "cx8", "fpu", "fxsr", "mmx", "syscall", "sse2"}) {
+		level = 1
+	}
+	if level == 1 && containsAll(flagSet, []string{"cx16", "lahf_lm", "popcnt", "sse4_1", "sse4_2", "ssse3"}) {
+		level = 2
+	}
+	if level == 2 && containsAll(flagSet, []string{"avx", "avx2", "bmi1", "bmi2", "f16c", "fma", "abm", "movbe", "xsave"}) {
+		level = 3
+	}
+	if level == 3 && containsAll(flagSet, []string{"avx512f", "avx512bw", "avx512cd", "avx512dq", "avx512vl"}) {
+		level = 4
+	}
+	return fmt.Sprintf("v%d", level), nil
 }

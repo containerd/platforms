@@ -23,7 +23,8 @@ import (
 	"github.com/containerd/log"
 )
 
-// Present the ARM instruction set architecture, eg: v7, v8
+// Present the instruction set architecture, eg: v7, v8 for ARM CPU,
+// v3, v4 for AMD64 CPU.
 // Don't use this value directly; call cpuVariant() instead.
 var cpuVariantValue string
 
@@ -33,9 +34,15 @@ func cpuVariant() string {
 	cpuVariantOnce.Do(func() {
 		if isArmArch(runtime.GOARCH) {
 			var err error
-			cpuVariantValue, err = getCPUVariant()
+			cpuVariantValue, err = getArmCPUVariant()
 			if err != nil {
-				log.L.Errorf("Error getCPUVariant for OS %s: %v", runtime.GOOS, err)
+				log.L.Errorf("Error getArmCPUVariant for OS %s: %v", runtime.GOOS, err)
+			}
+		} else if isAmd64Arch(runtime.GOARCH) {
+			var err error
+			cpuVariantValue, err = getAmd64MicroArchLevel()
+			if err != nil {
+				log.L.Errorf("Error getAmd64MicroArchLevel for OS %s: %v", runtime.GOOS, err)
 			}
 		}
 	})
