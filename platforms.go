@@ -121,7 +121,7 @@ import (
 )
 
 var (
-	specifierRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+	specifierRe = regexp.MustCompile(`^[\.A-Za-z0-9_-]+$`)
 )
 
 // Platform is a type alias for convenience, so there is no need to import image-spec package everywhere.

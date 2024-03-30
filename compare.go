@@ -72,6 +72,61 @@ func platformVector(platform specs.Platform) []specs.Platform {
 		if variant == "" {
 			variant = "v8"
 		}
+
+		if armMajor, err := strconv.Atoi(strings.TrimPrefix(variant[:2], "v")); err == nil && armMajor >= 8 {
+			armMinor := 0
+			if len(variant) == 4 {
+				if minor, err := strconv.Atoi(variant[3:]); err == nil && variant[2] == '.' {
+					armMinor = minor
+				}
+			}
+
+			if armMajor == 9 {
+				for minor := armMinor - 1; minor >= 0; minor-- {
+					arm64Variant := "v" + strconv.Itoa(armMajor) + "." + strconv.Itoa(minor)
+					if minor == 0 {
+						arm64Variant = "v" + strconv.Itoa(armMajor)
+					}
+					vector = append(vector, specs.Platform{
+						Architecture: platform.Architecture,
+						OS:           platform.OS,
+						OSVersion:    platform.OSVersion,
+						OSFeatures:   platform.OSFeatures,
+						Variant:      arm64Variant,
+					})
+				}
+
+				// v9.0 diverged from v8.5, meaning that v9.x is compatible with v8.{x+5}
+				armMinor = armMinor + 5
+				armMajor = 8
+				vector = append(vector, specs.Platform{
+					Architecture: platform.Architecture,
+					OS:           platform.OS,
+					OSVersion:    platform.OSVersion,
+					OSFeatures:   platform.OSFeatures,
+					Variant:      "v8." + strconv.Itoa(armMinor),
+				})
+			}
+
+			for minor := armMinor - 1; minor >= 0; minor-- {
+				arm64Variant := "v" + strconv.Itoa(armMajor) + "." + strconv.Itoa(minor)
+				if minor == 0 {
+					arm64Variant = "v" + strconv.Itoa(armMajor)
+				}
+				vector = append(vector, specs.Platform{
+					Architecture: platform.Architecture,
+					OS:           platform.OS,
+					OSVersion:    platform.OSVersion,
+					OSFeatures:   platform.OSFeatures,
+					Variant:      arm64Variant,
+				})
+			}
+		}
+
+		if strings.HasPrefix(variant, "v8.") || strings.HasPrefix(variant, "v9.") {
+			variant = "v8"
+		}
+
 		vector = append(vector, platformVector(specs.Platform{
 			Architecture: "arm",
 			OS:           platform.OS,
@@ -87,6 +142,8 @@ func platformVector(platform specs.Platform) []specs.Platform {
 // Only returns a match comparer for a single platform
 // using default resolution logic for the platform.
 //
+// For arm64/v9.x, will also match arm64/v9.{0..x-1} and arm64/v8.{0..x+5}
+// For arm64/v8.x, will also match arm64/v8.{0..x-1}
 // For arm/v8, will also match arm/v7, arm/v6 and arm/v5
 // For arm/v7, will also match arm/v6 and arm/v5
 // For arm/v6, will also match arm/v5
