@@ -87,8 +87,13 @@ func normalizeArch(arch, variant string) (string, string) {
 	case "aarch64", "arm64":
 		arch = "arm64"
 		switch variant {
-		case "8", "v8":
+		case "8", "v8", "8.0", "v8.0":
 			variant = ""
+		case "9", "9.0", "v9.0":
+			variant = "v9"
+		case "8.1", "8.2", "8.3", "8.4", "8.5", "8.6", "8.7", "8.8", "8.9",
+			"9.1", "9.2", "9.3", "9.4", "9.5":
+			variant = "v" + variant
 		}
 	case "armhf":
 		arch = "arm"
