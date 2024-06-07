@@ -78,7 +78,10 @@ func TestOnly(t *testing.T) {
 		{
 			platform: "windows/amd64",
 			matches: map[bool][]string{
-				true: {"windows/amd64"},
+				true: {
+					"windows/amd64",
+					"windows(10.0.17763)/amd64",
+				},
 				false: {
 					"linux/amd64",
 					"linux/arm/v7",
@@ -265,7 +268,25 @@ func TestOnlyStrict(t *testing.T) {
 		{
 			platform: "windows/amd64",
 			matches: map[bool][]string{
-				true: {"windows/amd64"},
+				true: {
+					"windows/amd64",
+					"windows(10.0.17763)/amd64",
+				},
+				false: {
+					"linux/amd64",
+					"linux/arm/v7",
+					"linux/arm64",
+					"windows/arm",
+				},
+			},
+		},
+		{
+			platform: "windows(10.0.17763)/amd64",
+			matches: map[bool][]string{
+				true: {
+					"windows/amd64",
+					"windows(10.0.17763)/amd64",
+				},
 				false: {
 					"linux/amd64",
 					"linux/arm/v7",

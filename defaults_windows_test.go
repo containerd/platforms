@@ -145,6 +145,10 @@ func TestMatchComparerMatch_WCOW(t *testing.T) {
 // TestMatchComparerMatch_ABICheckWCOW checks windows platform matcher
 // behavior for stable ABI and non-stable ABI compliant versions
 func TestMatchComparerMatch_ABICheckWCOW(t *testing.T) {
+	platformNoVersion := imagespec.Platform{
+		Architecture: "amd64",
+		OS:           "windows",
+	}
 	platformWS2019 := imagespec.Platform{
 		Architecture: "amd64",
 		OS:           "windows",
@@ -160,6 +164,7 @@ func TestMatchComparerMatch_ABICheckWCOW(t *testing.T) {
 		OS:           "windows",
 		OSVersion:    "10.0.22621",
 	}
+	matcherNoVersion := NewMatcher(platformNoVersion).(windowsmatcher)
 	matcherWS2019 := windowsmatcher{
 		Platform:        platformWS2019,
 		osVersionPrefix: platformWS2019.OSVersion,
@@ -240,6 +245,21 @@ func TestMatchComparerMatch_ABICheckWCOW(t *testing.T) {
 				OSVersion:    "10.0.20348",
 			},
 			match: true,
+		},
+		{
+			hostPlatformMatcher: matcherNoVersion,
+			testPlatform:        platformWS2019,
+			match:               true,
+		},
+		{
+			hostPlatformMatcher: matcherNoVersion,
+			testPlatform:        platformNoVersion,
+			match:               true,
+		},
+		{
+			hostPlatformMatcher: matcherNoVersion,
+			testPlatform:        platformWindows11,
+			match:               true,
 		},
 	} {
 		assert.Equal(t, test.match, test.hostPlatformMatcher.Match(test.testPlatform), "should match: %t, %s to %s", test.match, test.hostPlatformMatcher.Platform, test.testPlatform)
