@@ -52,7 +52,7 @@ func (m windowsmatcher) Match(p specs.Platform) bool {
 
 	if match && m.OS == "windows" {
 		// HPC containers do not have OS version filled
-		if p.OSVersion == "" {
+		if m.OSVersion == "" || p.OSVersion == "" {
 			return true
 		}
 
