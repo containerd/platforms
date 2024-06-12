@@ -29,7 +29,7 @@ func DefaultSpec() specs.Platform {
 	return specs.Platform{
 		OS:           runtime.GOOS,
 		Architecture: runtime.GOARCH,
-		// The Variant field will be empty if arch != ARM.
+		// The Variant field will be empty if arch != ARM and AMD64.
 		Variant: cpuVariant(),
 	}
 }
