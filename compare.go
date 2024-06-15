@@ -72,6 +72,17 @@ func platformVector(platform specs.Platform) []specs.Platform {
 		if variant == "" {
 			variant = "v8"
 		}
+		if arm64Version, err := strconv.Atoi(strings.TrimPrefix(platform.Variant, "v")); err == nil && arm64Version > 8 {
+			for arm64Version--; arm64Version >= 8; arm64Version-- {
+				vector = append(vector, specs.Platform{
+					Architecture: platform.Architecture,
+					OS:           platform.OS,
+					OSVersion:    platform.OSVersion,
+					OSFeatures:   platform.OSFeatures,
+					Variant:      "v" + strconv.Itoa(arm64Version),
+				})
+			}
+		}
 		vector = append(vector, platformVector(specs.Platform{
 			Architecture: "arm",
 			OS:           platform.OS,
