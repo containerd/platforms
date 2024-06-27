@@ -124,10 +124,11 @@ func platformVector(platform specs.Platform) []specs.Platform {
 			}
 		}
 
+		// All arm64/v8.x and arm64/v9.x are compatible with arm/v8 (32-bits) and below.
+		// There's no arm64 v9 variant, so it's normalized to v8.
 		if strings.HasPrefix(variant, "v8.") || strings.HasPrefix(variant, "v9.") {
 			variant = "v8"
 		}
-
 		vector = append(vector, platformVector(specs.Platform{
 			Architecture: "arm",
 			OS:           platform.OS,
