@@ -73,10 +73,11 @@ func platformVector(platform specs.Platform) []specs.Platform {
 			variant = "v8"
 		}
 
-		if armMajor, err := strconv.Atoi(strings.TrimPrefix(variant[:2], "v")); err == nil && armMajor >= 8 {
+		majorVariant, minorVariant, hasMinor := strings.Cut(variant, ".")
+		if armMajor, err := strconv.Atoi(strings.TrimPrefix(majorVariant, "v")); err == nil && armMajor >= 8 {
 			armMinor := 0
 			if len(variant) == 4 {
-				if minor, err := strconv.Atoi(variant[3:]); err == nil && variant[2] == '.' {
+				if minor, err := strconv.Atoi(minorVariant); err == nil && hasMinor {
 					armMinor = minor
 				}
 			}
