@@ -41,11 +41,13 @@ func platformVector(platform specs.Platform) []specs.Platform {
 		if amd64Version, err := strconv.Atoi(strings.TrimPrefix(platform.Variant, "v")); err == nil && amd64Version > 1 {
 			for amd64Version--; amd64Version >= 1; amd64Version-- {
 				vector = append(vector, specs.Platform{
-					Architecture: platform.Architecture,
-					OS:           platform.OS,
-					OSVersion:    platform.OSVersion,
-					OSFeatures:   platform.OSFeatures,
-					Variant:      "v" + strconv.Itoa(amd64Version),
+					Architecture:    platform.Architecture,
+					OS:              platform.OS,
+					OSVersion:       platform.OSVersion,
+					OSFeatures:      platform.OSFeatures,
+					Variant:         "v" + strconv.Itoa(amd64Version),
+					Features:        platform.Features,
+					Compatibilities: platform.Compatibilities,
 				})
 			}
 		}
@@ -59,11 +61,13 @@ func platformVector(platform specs.Platform) []specs.Platform {
 		if armVersion, err := strconv.Atoi(strings.TrimPrefix(platform.Variant, "v")); err == nil && armVersion > 5 {
 			for armVersion--; armVersion >= 5; armVersion-- {
 				vector = append(vector, specs.Platform{
-					Architecture: platform.Architecture,
-					OS:           platform.OS,
-					OSVersion:    platform.OSVersion,
-					OSFeatures:   platform.OSFeatures,
-					Variant:      "v" + strconv.Itoa(armVersion),
+					Architecture:    platform.Architecture,
+					OS:              platform.OS,
+					OSVersion:       platform.OSVersion,
+					OSFeatures:      platform.OSFeatures,
+					Variant:         "v" + strconv.Itoa(armVersion),
+					Features:        platform.Features,
+					Compatibilities: platform.Compatibilities,
 				})
 			}
 		}
@@ -73,11 +77,13 @@ func platformVector(platform specs.Platform) []specs.Platform {
 			variant = "v8"
 		}
 		vector = append(vector, platformVector(specs.Platform{
-			Architecture: "arm",
-			OS:           platform.OS,
-			OSVersion:    platform.OSVersion,
-			OSFeatures:   platform.OSFeatures,
-			Variant:      variant,
+			Architecture:    "arm",
+			OS:              platform.OS,
+			OSVersion:       platform.OSVersion,
+			OSFeatures:      platform.OSFeatures,
+			Variant:         variant,
+			Features:        platform.Features,
+			Compatibilities: platform.Compatibilities,
 		})...)
 	}
 

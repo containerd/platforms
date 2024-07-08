@@ -146,13 +146,37 @@ func NewMatcher(platform specs.Platform) Matcher {
 
 type matcher struct {
 	specs.Platform
+
+	// featuresSet contains normalized set of features built from platform.features
+	featuresSet map[string]bool
 }
 
 func (m *matcher) Match(platform specs.Platform) bool {
 	normalized := Normalize(platform)
-	return m.OS == normalized.OS &&
+
+	mo := m.OS == normalized.OS &&
 		m.Architecture == normalized.Architecture &&
 		m.Variant == normalized.Variant
+
+	mf := true
+	for _, f := range normalized.Features {
+		if !m.featuresSet[f] {
+			mf = false
+			break
+		}
+	}
+
+	mc := true
+	for k, nv := range normalized.Compatibilities {
+		if v, ok := m.Compatibilities[k]; ok && v == nv {
+			continue
+		}
+
+		mc = false
+		break
+	}
+
+	return mo && mf && mc
 }
 
 func (m *matcher) String() string {
@@ -285,6 +309,8 @@ func Format(platform specs.Platform) string {
 func Normalize(platform specs.Platform) specs.Platform {
 	platform.OS = normalizeOS(platform.OS)
 	platform.Architecture, platform.Variant = normalizeArch(platform.Architecture, platform.Variant)
+	normalizeFeatures(platform.Features)
+	normalizeCompatibilities(platform.Compatibilities)
 
 	return platform
 }

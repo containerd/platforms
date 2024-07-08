@@ -24,9 +24,22 @@ import (
 
 // NewMatcher returns the default Matcher for containerd
 func newDefaultMatcher(platform specs.Platform) Matcher {
-	return &matcher{
+	m := &matcher{
 		Platform: Normalize(platform),
 	}
+
+	p := mustReadConfig()
+	m.Platform.Features = p.Features
+	m.Platform.Compatibilities = p.Compatibilities
+
+	if fs := m.Platform.Features; len(fs) > 0 {
+		m.featuresSet = make(map[string]bool, len(fs))
+		for _, f := range fs {
+			m.featuresSet[f] = true
+		}
+	}
+
+	return m
 }
 
 func GetWindowsOsVersion() string {

@@ -107,3 +107,15 @@ func normalizeArch(arch, variant string) (string, string) {
 
 	return arch, variant
 }
+
+func normalizeFeatures(features []string) {
+	for i, f := range features {
+		features[i] = strings.ToLower(f)
+	}
+}
+
+func normalizeCompatibilities(compat map[string]string) {
+	for k, v := range compat {
+		compat[k] = strings.ToLower(v)
+	}
+}
