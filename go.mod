@@ -6,7 +6,7 @@ require (
 	github.com/containerd/log v0.1.0
 	github.com/opencontainers/image-spec v1.1.0
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/sys v0.10.0
+	golang.org/x/sys v0.26.0
 )
 
 require (
