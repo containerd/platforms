@@ -47,6 +47,25 @@ func TestDefault(t *testing.T) {
 	}
 }
 
+func TestMaximum(t *testing.T) {
+	major, minor, build := windows.RtlGetNtVersionNumbers()
+	expected := imagespec.Platform{
+		OS:           runtime.GOOS,
+		Architecture: runtime.GOARCH,
+		OSVersion:    fmt.Sprintf("%d.%d.%d", major, minor, build),
+		Variant:      cpuVariantMaximum(),
+	}
+	p := MaximumSpec()
+	if !reflect.DeepEqual(p, expected) {
+		t.Fatalf("maximum platform not as expected: %#v != %#v", p, expected)
+	}
+
+	s := MaximumString()
+	if s != FormatAll(p) {
+		t.Fatalf("maximum specifier should match formatted maximum spec: %v != %v", s, p)
+	}
+}
+
 func TestDefaultMatchComparer(t *testing.T) {
 	defaultMatcher := Default()
 

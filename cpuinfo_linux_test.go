@@ -29,7 +29,7 @@ func TestCPUVariant(t *testing.T) {
 
 	variants := []string{"v8", "v7", "v6", "v5", "v4", "v3"}
 
-	p, err := getCPUVariant()
+	p, err := getArmCPUVariant()
 	if err != nil {
 		t.Fatalf("Error getting CPU variant: %v", err)
 		return

@@ -106,12 +106,12 @@ func getCPUVariantFromArch(arch string) (string, error) {
 	return variant, nil
 }
 
-// getCPUVariant returns cpu variant for ARM
+// getArmCPUVariant returns cpu variant for ARM
 // We first try reading "Cpu architecture" field from /proc/cpuinfo
 // If we can't find it, then fall back using a system call
 // This is to cover running ARM in emulated environment on x86 host as this field in /proc/cpuinfo
 // was not present.
-func getCPUVariant() (string, error) {
+func getArmCPUVariant() (string, error) {
 	variant, err := getCPUInfo("Cpu architecture")
 	if err != nil {
 		if errors.Is(err, errNotFound) {

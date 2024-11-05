@@ -27,3 +27,13 @@ func DefaultString() string {
 func DefaultStrict() MatchComparer {
 	return OnlyStrict(DefaultSpec())
 }
+
+// MaximumString returns the maximum string specifier for the platform.
+func MaximumString() string {
+	return FormatAll(MaximumSpec())
+}
+
+// MaximumStrict returns strict form of Maximum.
+func MaximumStrict() MatchComparer {
+	return OnlyStrict(MaximumSpec())
+}
