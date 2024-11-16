@@ -114,6 +114,7 @@ import (
 	"path"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -141,6 +142,10 @@ type Matcher interface {
 // functionality.
 //
 // Applications should opt to use `Match` over directly parsing specifiers.
+//
+// For OSFeatures, this matcher will match if the platform to match has
+// OSFeatures which are a subset of the OSFeatures of the platform
+// provided to NewMatcher.
 func NewMatcher(platform specs.Platform) Matcher {
 	return newDefaultMatcher(platform)
 }
@@ -151,9 +156,40 @@ type matcher struct {
 
 func (m *matcher) Match(platform specs.Platform) bool {
 	normalized := Normalize(platform)
-	return m.OS == normalized.OS &&
+	if m.OS == normalized.OS &&
 		m.Architecture == normalized.Architecture &&
-		m.Variant == normalized.Variant
+		m.Variant == normalized.Variant {
+		if len(normalized.OSFeatures) == 0 {
+			return true
+		}
+		if len(m.OSFeatures) >= len(normalized.OSFeatures) {
+			// Ensure that normalized.OSFeatures is a subet of
+			// m.OSFeatures
+			j := 0
+			for _, feature := range normalized.OSFeatures {
+				for ; j < len(m.OSFeatures); j++ {
+					if feature == m.OSFeatures[j] {
+						// Don't increment j since the list is sorted
+						// but may contain duplicates
+						// TODO: Deduplicate list during normalize so
+						// that j can be incremented here
+						break
+					}
+					// Since both lists are ordered, if the feature is less
+					// than what is seen, it is not in the list
+					if feature < m.OSFeatures[j] {
+						return false
+					}
+				}
+				// if we hit the end, then feature was not found
+				if j == len(m.OSFeatures) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
 }
 
 func (m *matcher) String() string {
@@ -311,6 +347,9 @@ func FormatAll(platform specs.Platform) string {
 func Normalize(platform specs.Platform) specs.Platform {
 	platform.OS = normalizeOS(platform.OS)
 	platform.Architecture, platform.Variant = normalizeArch(platform.Architecture, platform.Variant)
+	if len(platform.OSFeatures) > 0 {
+		sort.Strings(platform.OSFeatures)
+	}
 
 	return platform
 }
