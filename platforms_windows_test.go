@@ -17,14 +17,18 @@
 package platforms
 
 import (
+	"reflect"
 	"testing"
 
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNormalize(t *testing.T) {
-	require.Equal(t, DefaultSpec(), Normalize(DefaultSpec()))
+	s := DefaultSpec()
+	n := Normalize(DefaultSpec())
+	if !reflect.DeepEqual(s, n) {
+		t.Errorf("Normalize returned %+v, expected %+v", n, s)
+	}
 }
 
 func TestFallbackOnOSVersion(t *testing.T) {
@@ -37,5 +41,7 @@ func TestFallbackOnOSVersion(t *testing.T) {
 	other := specs.Platform{OS: p.OS, Architecture: p.Architecture}
 
 	m := NewMatcher(p)
-	require.True(t, m.Match(other))
+	if !m.Match(other) {
+		t.Errorf("Expected %+v to match", other)
+	}
 }
