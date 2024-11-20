@@ -17,6 +17,8 @@
 package platforms
 
 import (
+	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -588,6 +590,97 @@ func TestOnlyStrict(t *testing.T) {
 						t.Errorf("OnlyStrict(%q).Match(%q) should return %v, but returns %v", testcase.platform, matchPlatform, shouldMatch, match)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestCompareOSFeatures(t *testing.T) {
+	for _, tc := range []struct {
+		platform  string
+		platforms []string
+		expected  []string
+	}{
+		{
+			"linux/amd64",
+			[]string{"windows/amd64", "linux/amd64", "linux(+other)/amd64", "linux/arm64"},
+			[]string{"linux/amd64", "linux(+other)/amd64", "windows/amd64", "linux/arm64"},
+		},
+		{
+			"linux(+none)/amd64",
+			[]string{"windows/amd64", "linux/amd64", "linux/arm64", "linux(+other)/amd64"},
+			[]string{"linux/amd64", "linux(+other)/amd64", "windows/amd64", "linux/arm64"},
+		},
+		{
+			"linux(+other)/amd64",
+			[]string{"windows/amd64", "linux/amd64", "linux/arm64", "linux(+other)/amd64"},
+			[]string{"linux(+other)/amd64", "linux/amd64", "windows/amd64", "linux/arm64"},
+		},
+		{
+			"linux(+af+other+zf)/amd64",
+			[]string{"windows/amd64", "linux/amd64", "linux/arm64", "linux(+other)/amd64"},
+			[]string{"linux(+other)/amd64", "linux/amd64", "windows/amd64", "linux/arm64"},
+		},
+		{
+			"linux(+f1+f2)/amd64",
+			[]string{"linux/amd64", "linux(+f2)/amd64", "linux(+f1)/amd64", "linux(+f1+f2)/amd64"},
+			[]string{"linux(+f1+f2)/amd64", "linux(+f2)/amd64", "linux(+f1)/amd64", "linux/amd64"},
+		},
+		{
+			// This test should likely fail and be updated when os version is considered for linux
+			"linux(7.2+other)/amd64",
+			[]string{"linux/amd64", "linux(+other)/amd64", "linux(7.1)/amd64", "linux(7.2+other)/amd64"},
+			[]string{"linux(+other)/amd64", "linux(7.2+other)/amd64", "linux/amd64", "linux(7.1)/amd64"},
+		},
+	} {
+		testcase := tc
+		t.Run(testcase.platform, func(t *testing.T) {
+			t.Parallel()
+			p, err := Parse(testcase.platform)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, stc := range []struct {
+				name string
+				mc   MatchComparer
+			}{
+				{
+					name: "only",
+					mc:   Only(p),
+				},
+				{
+					name: "only strict",
+					mc:   OnlyStrict(p),
+				},
+				{
+					name: "ordered",
+					mc:   Ordered(p),
+				},
+				{
+					name: "any",
+					mc:   Any(p),
+				},
+			} {
+				mc := stc.mc
+				testcase := testcase
+				t.Run(stc.name, func(t *testing.T) {
+					p, err := ParseAll(testcase.platforms)
+					if err != nil {
+						t.Fatal(err)
+					}
+					sort.Slice(p, func(i, j int) bool {
+						return mc.Less(p[i], p[j])
+					})
+					actual := make([]string, len(p))
+					for i, ps := range p {
+						actual[i] = FormatAll(ps)
+					}
+
+					if !reflect.DeepEqual(testcase.expected, actual) {
+						t.Errorf("Wrong platform order:\nExpected: %#v\nActual:   %#v", testcase.expected, actual)
+					}
+				})
 			}
 		})
 	}
