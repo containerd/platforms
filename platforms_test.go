@@ -264,6 +264,15 @@ func TestParseSelector(t *testing.T) {
 			useV2Format: false,
 		},
 		{
+			input: "Linux/x86_64/v2",
+			expected: specs.Platform{
+				OS:           "linux",
+				Architecture: "amd64",
+				Variant:      "v2",
+			},
+			formatted: "linux/amd64/v2",
+		},
+		{
 			input: "i386",
 			expected: specs.Platform{
 				OS:           defaultOS,

@@ -42,3 +42,20 @@ func TestDefault(t *testing.T) {
 		t.Fatalf("default specifier should match formatted default spec: %v != %v", s, p)
 	}
 }
+
+func TestMaximum(t *testing.T) {
+	expected := specs.Platform{
+		OS:           runtime.GOOS,
+		Architecture: runtime.GOARCH,
+		Variant:      cpuVariantMaximum(),
+	}
+	p := MaximumSpec()
+	if !reflect.DeepEqual(p, expected) {
+		t.Fatalf("maximum platform not as expected: %#v != %#v", p, expected)
+	}
+
+	s := MaximumString()
+	if s != FormatAll(p) {
+		t.Fatalf("maximum specifier should match formatted maximum spec: %v != %v", s, p)
+	}
+}

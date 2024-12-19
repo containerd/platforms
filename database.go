@@ -48,6 +48,13 @@ func isArmArch(arch string) bool {
 	return false
 }
 
+// isAmd64Arch returns true if the architecture is AMD64.
+//
+// The arch value should be normalized before being passed to this function.
+func isAmd64Arch(arch string) bool {
+	return arch == "amd64"
+}
+
 // isKnownArch returns true if we know about the architecture.
 //
 // The arch value should be normalized before being passed to this function.
