@@ -24,7 +24,6 @@ import (
 	"testing"
 
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/windows"
 )
 
@@ -66,7 +65,9 @@ func TestDefaultMatchComparer(t *testing.T) {
 			match: false,
 		},
 	} {
-		assert.Equal(t, test.match, defaultMatcher.Match(test.platform))
+		if actual := defaultMatcher.Match(test.platform); actual != test.match {
+			t.Errorf("expected: %v, actual: %v", test.match, actual)
+		}
 	}
 
 }
@@ -138,7 +139,9 @@ func TestMatchComparerMatch_WCOW(t *testing.T) {
 			match: false,
 		},
 	} {
-		assert.Equal(t, test.match, m.Match(test.platform), "should match: %t, %s to %s", test.match, m.Platform, test.platform)
+		if actual := m.Match(test.platform); actual != test.match {
+			t.Errorf("should match: %t, %s to %s", test.match, m.Platform, test.platform)
+		}
 	}
 }
 
@@ -262,7 +265,9 @@ func TestMatchComparerMatch_ABICheckWCOW(t *testing.T) {
 			match:               true,
 		},
 	} {
-		assert.Equal(t, test.match, test.hostPlatformMatcher.Match(test.testPlatform), "should match: %t, %s to %s", test.match, test.hostPlatformMatcher.Platform, test.testPlatform)
+		if actual := test.hostPlatformMatcher.Match(test.testPlatform); actual != test.match {
+			t.Errorf("should match: %t, %s to %s", test.match, test.hostPlatformMatcher.Platform, test.testPlatform)
+		}
 	}
 }
 
@@ -323,7 +328,9 @@ func TestMatchComparerMatch_LCOW(t *testing.T) {
 			match: true,
 		},
 	} {
-		assert.Equal(t, test.match, m.Match(test.platform), "should match %b, %s to %s", test.match, m.Platform, test.platform)
+		if actual := m.Match(test.platform); actual != test.match {
+			t.Errorf("should match: %t, %s to %s", test.match, m.Platform, test.platform)
+		}
 	}
 }
 
@@ -390,5 +397,7 @@ func TestMatchComparerLess(t *testing.T) {
 	sort.SliceStable(platforms, func(i, j int) bool {
 		return m.Less(platforms[i], platforms[j])
 	})
-	assert.Equal(t, expected, platforms)
+	if !reflect.DeepEqual(platforms, expected) {
+		t.Errorf("expected: %s\nactual  : %s", expected, platforms)
+	}
 }
