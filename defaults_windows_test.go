@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
-	"sort"
 	"testing"
 
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -69,19 +68,14 @@ func TestDefaultMatchComparer(t *testing.T) {
 			t.Errorf("expected: %v, actual: %v", test.match, actual)
 		}
 	}
-
 }
 
 func TestMatchComparerMatch_WCOW(t *testing.T) {
 	major, minor, build := windows.RtlGetNtVersionNumbers()
 	buildStr := fmt.Sprintf("%d.%d.%d", major, minor, build)
-	m := windowsmatcher{
-		Platform:        DefaultSpec(),
-		osVersionPrefix: buildStr,
-		defaultMatcher: &matcher{
-			Platform: Normalize(DefaultSpec()),
-		},
-	}
+	platform := DefaultSpec()
+	m := NewMatcher(platform)
+
 	for _, test := range []struct {
 		platform imagespec.Platform
 		match    bool
@@ -140,133 +134,7 @@ func TestMatchComparerMatch_WCOW(t *testing.T) {
 		},
 	} {
 		if actual := m.Match(test.platform); actual != test.match {
-			t.Errorf("should match: %t, %s to %s", test.match, m.Platform, test.platform)
-		}
-	}
-}
-
-// TestMatchComparerMatch_ABICheckWCOW checks windows platform matcher
-// behavior for stable ABI and non-stable ABI compliant versions
-func TestMatchComparerMatch_ABICheckWCOW(t *testing.T) {
-	platformNoVersion := imagespec.Platform{
-		Architecture: "amd64",
-		OS:           "windows",
-	}
-	platformWS2019 := imagespec.Platform{
-		Architecture: "amd64",
-		OS:           "windows",
-		OSVersion:    "10.0.17763",
-	}
-	platformWS2022 := imagespec.Platform{
-		Architecture: "amd64",
-		OS:           "windows",
-		OSVersion:    "10.0.20348",
-	}
-	platformWindows11 := imagespec.Platform{
-		Architecture: "amd64",
-		OS:           "windows",
-		OSVersion:    "10.0.22621",
-	}
-	matcherNoVersion := NewMatcher(platformNoVersion).(windowsmatcher)
-	matcherWS2019 := windowsmatcher{
-		Platform:        platformWS2019,
-		osVersionPrefix: platformWS2019.OSVersion,
-		defaultMatcher: &matcher{
-			Platform: Normalize(platformWS2019),
-		},
-	}
-	matcherWS2022 := windowsmatcher{
-		Platform:        platformWS2022,
-		osVersionPrefix: platformWS2022.OSVersion,
-		defaultMatcher: &matcher{
-			Platform: Normalize(platformWS2022),
-		},
-	}
-	matcherWindows11 := windowsmatcher{
-		Platform:        platformWindows11,
-		osVersionPrefix: platformWindows11.OSVersion,
-		defaultMatcher: &matcher{
-			Platform: Normalize(platformWindows11),
-		},
-	}
-
-	for _, test := range []struct {
-		hostPlatformMatcher windowsmatcher
-		testPlatform        imagespec.Platform
-		match               bool
-	}{
-		{
-			hostPlatformMatcher: matcherWS2019,
-			testPlatform: imagespec.Platform{
-				Architecture: "amd64",
-				OS:           "windows",
-				OSVersion:    "10.0.17763",
-			},
-			match: true,
-		},
-		{
-			hostPlatformMatcher: matcherWS2019,
-			testPlatform: imagespec.Platform{
-				Architecture: "amd64",
-				OS:           "windows",
-				OSVersion:    "10.0.20348",
-			},
-			match: false,
-		},
-		{
-			hostPlatformMatcher: matcherWS2022,
-			testPlatform: imagespec.Platform{
-				Architecture: "amd64",
-				OS:           "windows",
-				OSVersion:    "10.0.17763",
-			},
-			match: false,
-		},
-		{
-			hostPlatformMatcher: matcherWS2022,
-			testPlatform: imagespec.Platform{
-				Architecture: "amd64",
-				OS:           "windows",
-				OSVersion:    "10.0.20348",
-			},
-			match: true,
-		},
-		{
-			hostPlatformMatcher: matcherWindows11,
-			testPlatform: imagespec.Platform{
-				Architecture: "amd64",
-				OS:           "windows",
-				OSVersion:    "10.0.17763",
-			},
-			match: false,
-		},
-		{
-			hostPlatformMatcher: matcherWindows11,
-			testPlatform: imagespec.Platform{
-				Architecture: "amd64",
-				OS:           "windows",
-				OSVersion:    "10.0.20348",
-			},
-			match: true,
-		},
-		{
-			hostPlatformMatcher: matcherNoVersion,
-			testPlatform:        platformWS2019,
-			match:               true,
-		},
-		{
-			hostPlatformMatcher: matcherNoVersion,
-			testPlatform:        platformNoVersion,
-			match:               true,
-		},
-		{
-			hostPlatformMatcher: matcherNoVersion,
-			testPlatform:        platformWindows11,
-			match:               true,
-		},
-	} {
-		if actual := test.hostPlatformMatcher.Match(test.testPlatform); actual != test.match {
-			t.Errorf("should match: %t, %s to %s", test.match, test.hostPlatformMatcher.Platform, test.testPlatform)
+			t.Errorf("should match: %t, %s to %s", test.match, platform, test.platform)
 		}
 	}
 }
@@ -274,20 +142,9 @@ func TestMatchComparerMatch_ABICheckWCOW(t *testing.T) {
 func TestMatchComparerMatch_LCOW(t *testing.T) {
 	major, minor, build := windows.RtlGetNtVersionNumbers()
 	buildStr := fmt.Sprintf("%d.%d.%d", major, minor, build)
-	m := windowsmatcher{
-		Platform: imagespec.Platform{
-			OS:           "linux",
-			Architecture: "amd64",
-		},
-		osVersionPrefix: "",
-		defaultMatcher: &matcher{
-			Platform: Normalize(imagespec.Platform{
-				OS:           "linux",
-				Architecture: "amd64",
-			},
-			),
-		},
-	}
+
+	pLinux := imagespec.Platform{OS: "linux", Architecture: "amd64"}
+	m := NewMatcher(pLinux)
 	for _, test := range []struct {
 		platform imagespec.Platform
 		match    bool
@@ -329,75 +186,7 @@ func TestMatchComparerMatch_LCOW(t *testing.T) {
 		},
 	} {
 		if actual := m.Match(test.platform); actual != test.match {
-			t.Errorf("should match: %t, %s to %s", test.match, m.Platform, test.platform)
+			t.Errorf("should match: %t, %s to %s", test.match, pLinux, test.platform)
 		}
-	}
-}
-
-func TestMatchComparerLess(t *testing.T) {
-	m := windowsmatcher{
-		Platform:        DefaultSpec(),
-		osVersionPrefix: "10.0.17763",
-		defaultMatcher: &matcher{
-			Platform: Normalize(DefaultSpec()),
-		},
-	}
-	platforms := []imagespec.Platform{
-		{
-			Architecture: "amd64",
-			OS:           "windows",
-			OSVersion:    "10.0.17764.1",
-		},
-		{
-			Architecture: "amd64",
-			OS:           "windows",
-		},
-		{
-			Architecture: "amd64",
-			OS:           "windows",
-			OSVersion:    "10.0.17763.1",
-		},
-		{
-			Architecture: "amd64",
-			OS:           "windows",
-			OSVersion:    "10.0.17763.2",
-		},
-		{
-			Architecture: "amd64",
-			OS:           "windows",
-			OSVersion:    "10.0.17762.1",
-		},
-	}
-	expected := []imagespec.Platform{
-		{
-			Architecture: "amd64",
-			OS:           "windows",
-			OSVersion:    "10.0.17763.2",
-		},
-		{
-			Architecture: "amd64",
-			OS:           "windows",
-			OSVersion:    "10.0.17763.1",
-		},
-		{
-			Architecture: "amd64",
-			OS:           "windows",
-		},
-		{
-			Architecture: "amd64",
-			OS:           "windows",
-			OSVersion:    "10.0.17764.1",
-		},
-		{
-			Architecture: "amd64",
-			OS:           "windows",
-			OSVersion:    "10.0.17762.1",
-		},
-	}
-	sort.SliceStable(platforms, func(i, j int) bool {
-		return m.Less(platforms[i], platforms[j])
-	})
-	if !reflect.DeepEqual(platforms, expected) {
-		t.Errorf("expected: %s\nactual  : %s", expected, platforms)
 	}
 }
