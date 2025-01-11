@@ -63,17 +63,17 @@ func Test_PlatformCompat(t *testing.T) {
 		// Check if ltsc2019/ltsc2022 guest images are compatible on
 		// the given host OS versions
 		//
-		hostOSVersion := osVersion{
+		hostOSVersion := windowsOSVersion{
 			MajorVersion: 10,
 			MinorVersion: 0,
 			Build:        tc.hostOs,
 		}
-		ctrOSVersion := osVersion{
+		ctrOSVersion := windowsOSVersion{
 			MajorVersion: 10,
 			MinorVersion: 0,
 			Build:        tc.ctrOs,
 		}
-		if checkHostAndContainerCompat(hostOSVersion, ctrOSVersion) != tc.shouldRun {
+		if checkWindowsHostAndContainerCompat(hostOSVersion, ctrOSVersion) != tc.shouldRun {
 			var expectedResultStr string
 			if !tc.shouldRun {
 				expectedResultStr = " NOT"
