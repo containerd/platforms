@@ -135,18 +135,6 @@ func getWindowsOSVersion(osVersionPrefix string) windowsOSVersion {
 	}
 }
 
-func winRevision(v string) int {
-	parts := strings.Split(v, ".")
-	if len(parts) < 4 {
-		return 0
-	}
-	r, err := strconv.Atoi(parts[3])
-	if err != nil {
-		return 0
-	}
-	return r
-}
-
 type windowsVersionMatcher struct {
 	windowsOSVersion
 }
@@ -170,8 +158,7 @@ type windowsMatchComparer struct {
 func (c *windowsMatchComparer) Less(p1, p2 specs.Platform) bool {
 	m1, m2 := c.Match(p1), c.Match(p2)
 	if m1 && m2 {
-		r1, r2 := winRevision(p1.OSVersion), winRevision(p2.OSVersion)
-		return r1 > r2
+		return p1.OSVersion > p2.OSVersion
 	}
 	return m1 && !m2
 }
