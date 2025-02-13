@@ -17,68 +17,96 @@
 package platforms
 
 import (
+	"fmt"
 	"testing"
 )
 
-// Test the platform compatibility of the different
-// OS Versions considering two ltsc container image
-// versions (ltsc2019, ltsc2022)
+// Test the platform compatibility of the different OS Versions
 func Test_PlatformCompat(t *testing.T) {
-	for testName, tc := range map[string]struct {
-		hostOs    uint16
-		ctrOs     uint16
+	for _, tc := range []struct {
+		hostOS    uint16
+		ctrOS     uint16
 		shouldRun bool
 	}{
-		"RS5Host_ltsc2019": {
-			hostOs:    rs5,
-			ctrOs:     rs5,
+		{
+			hostOS:    ltsc2019,
+			ctrOS:     ltsc2019,
 			shouldRun: true,
 		},
-		"RS5Host_ltsc2022": {
-			hostOs:    rs5,
-			ctrOs:     v21H2Server,
+		{
+			hostOS:    ltsc2019,
+			ctrOS:     ltsc2022,
 			shouldRun: false,
 		},
-		"WS2022Host_ltsc2019": {
-			hostOs:    v21H2Server,
-			ctrOs:     rs5,
+		{
+			hostOS:    ltsc2022,
+			ctrOS:     ltsc2019,
 			shouldRun: false,
 		},
-		"WS2022Host_ltsc2022": {
-			hostOs:    v21H2Server,
-			ctrOs:     v21H2Server,
+		{
+			hostOS:    ltsc2022,
+			ctrOS:     ltsc2022,
 			shouldRun: true,
 		},
-		"Wind11Host_ltsc2019": {
-			hostOs:    v22H2Win11,
-			ctrOs:     rs5,
+		{
+			hostOS:    v22H2Win11,
+			ctrOS:     ltsc2019,
 			shouldRun: false,
 		},
-		"Wind11Host_ltsc2022": {
-			hostOs:    v22H2Win11,
-			ctrOs:     v21H2Server,
+		{
+			hostOS:    v22H2Win11,
+			ctrOS:     ltsc2022,
+			shouldRun: true,
+		},
+		{
+			hostOS:    v23H2,
+			ctrOS:     ltsc2019,
+			shouldRun: false,
+		},
+		{
+			hostOS:    v23H2,
+			ctrOS:     ltsc2022,
+			shouldRun: true,
+		},
+		{
+			hostOS:    ltsc2025,
+			ctrOS:     ltsc2022,
+			shouldRun: true,
+		},
+		{
+			hostOS:    ltsc2022,
+			ctrOS:     ltsc2025,
+			shouldRun: false,
+		},
+		{
+			hostOS:    ltsc2022,
+			ctrOS:     v22H2Win11,
+			shouldRun: false,
+		},
+		{
+			hostOS:    ltsc2025,
+			ctrOS:     v22H2Win11,
 			shouldRun: true,
 		},
 	} {
-		// Check if ltsc2019/ltsc2022 guest images are compatible on
-		// the given host OS versions
-		//
-		hostOSVersion := windowsOSVersion{
-			MajorVersion: 10,
-			MinorVersion: 0,
-			Build:        tc.hostOs,
-		}
-		ctrOSVersion := windowsOSVersion{
-			MajorVersion: 10,
-			MinorVersion: 0,
-			Build:        tc.ctrOs,
-		}
-		if checkWindowsHostAndContainerCompat(hostOSVersion, ctrOSVersion) != tc.shouldRun {
-			var expectedResultStr string
-			if !tc.shouldRun {
-				expectedResultStr = " NOT"
+		t.Run(fmt.Sprintf("Host_%d_Ctr_%d", tc.hostOS, tc.ctrOS), func(t *testing.T) {
+			hostOSVersion := windowsOSVersion{
+				MajorVersion: 10,
+				MinorVersion: 0,
+				Build:        tc.hostOS,
 			}
-			t.Fatalf("Failed %v: host %v should%s be able to run guest %v", testName, tc.hostOs, expectedResultStr, tc.ctrOs)
-		}
+			ctrOSVersion := windowsOSVersion{
+				MajorVersion: 10,
+				MinorVersion: 0,
+				Build:        tc.ctrOS,
+			}
+			if checkWindowsHostAndContainerCompat(hostOSVersion, ctrOSVersion) != tc.shouldRun {
+				var expectedResultStr string
+				if !tc.shouldRun {
+					expectedResultStr = " NOT"
+				}
+				t.Fatalf("host %v should%s be able to run guest %v", tc.hostOS, expectedResultStr, tc.ctrOS)
+			}
+		})
 	}
 }
