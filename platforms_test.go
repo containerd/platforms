@@ -343,6 +343,26 @@ func TestParseSelector(t *testing.T) {
 			formatted:   path.Join("windows(10.0.17763)", defaultArch, defaultVariant),
 			useV2Format: true,
 		},
+		{
+			input: "windows(10.0.17763)/amd64",
+			expected: specs.Platform{
+				OS:           "windows",
+				OSVersion:    "10.0.17763",
+				Architecture: "amd64",
+			},
+			formatted:   "windows(10.0.17763)/amd64",
+			useV2Format: true,
+		},
+		{
+			input: "macos(Abcd.Efgh.123-4)/aarch64",
+			expected: specs.Platform{
+				OS:           "darwin",
+				OSVersion:    "Abcd.Efgh.123-4",
+				Architecture: "arm64",
+			},
+			formatted:   "darwin(Abcd.Efgh.123-4)/arm64",
+			useV2Format: true,
+		},
 	} {
 		t.Run(testcase.input, func(t *testing.T) {
 			if testcase.skip {
@@ -370,10 +390,10 @@ func TestParseSelector(t *testing.T) {
 			}
 
 			formatted := ""
-			if testcase.useV2Format == false {
-				formatted = Format(p)
-			} else {
+			if testcase.useV2Format {
 				formatted = FormatAll(p)
+			} else {
+				formatted = Format(p)
 			}
 			if formatted != testcase.formatted {
 				t.Fatalf("unexpected format: %q != %q", formatted, testcase.formatted)
@@ -385,13 +405,13 @@ func TestParseSelector(t *testing.T) {
 				t.Fatalf("error parsing formatted output: %v", err)
 			}
 
-			if testcase.useV2Format == false {
-				if Format(reparsed) != formatted {
-					t.Fatalf("normalized output did not survive the round trip: %v != %v", Format(reparsed), formatted)
-				}
-			} else {
+			if testcase.useV2Format {
 				if FormatAll(reparsed) != formatted {
 					t.Fatalf("normalized output did not survive the round trip: %v != %v", FormatAll(reparsed), formatted)
+				}
+			} else {
+				if Format(reparsed) != formatted {
+					t.Fatalf("normalized output did not survive the round trip: %v != %v", Format(reparsed), formatted)
 				}
 			}
 		})
@@ -419,6 +439,15 @@ func TestParseSelectorInvalid(t *testing.T) {
 		},
 		{
 			input: "linux/arm/foo/bar", // too many components
+		},
+		{
+			input: "amd64/windows(10.0.17763)/foo", // only first element accepts os[(osVersion)]
+		},
+		{
+			input: "linux)()---()..../arm/foo",
+		},
+		{
+			input: "../arm/foo",
 		},
 	} {
 		t.Run(testcase.input, func(t *testing.T) {
