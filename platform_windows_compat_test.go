@@ -18,7 +18,10 @@ package platforms
 
 import (
 	"fmt"
+	"sort"
 	"testing"
+
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // Test the platform compatibility of the different OS Versions
@@ -109,4 +112,76 @@ func Test_PlatformCompat(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_PlatformOrder(t *testing.T) {
+	linuxPlatform := specs.Platform{
+		Architecture: "amd64",
+		OS:           "linux",
+		OSVersion:    "",
+		OSFeatures:   nil,
+		Variant:      "",
+	}
+	ws2022Platform := specs.Platform{
+		Architecture: "amd64",
+		OS:           "windows",
+		OSVersion:    "10.0.20348.3091",
+		OSFeatures:   nil,
+		Variant:      "",
+	}
+	ws2025Platform := specs.Platform{
+		Architecture: "amd64",
+		OS:           "windows",
+		OSVersion:    "10.0.26100.2894",
+		OSFeatures:   nil,
+		Variant:      "",
+	}
+	ws2025Rev3000Platform := specs.Platform{
+		Architecture: "amd64",
+		OS:           "windows",
+		OSVersion:    "10.0.26100.3000",
+		OSFeatures:   nil,
+		Variant:      "",
+	}
+
+	tt := []struct {
+		name         string
+		hostPlatform specs.Platform
+		platforms    []specs.Platform
+		wantPlatform specs.Platform
+	}{
+		{
+			name:         "Windows Server 2022 should select 2022",
+			hostPlatform: ws2022Platform,
+			platforms:    []specs.Platform{linuxPlatform, ws2022Platform, ws2025Platform},
+			wantPlatform: ws2022Platform,
+		},
+		{
+			name:         "Windows Server 2025 should select 2025",
+			hostPlatform: ws2025Platform,
+			platforms:    []specs.Platform{linuxPlatform, ws2022Platform, ws2025Platform},
+			wantPlatform: ws2025Platform,
+		},
+		{
+			name:         "Windows Server 2025 should select 2025 latest rev",
+			hostPlatform: ws2025Platform,
+			platforms:    []specs.Platform{linuxPlatform, ws2022Platform, ws2025Rev3000Platform},
+			wantPlatform: ws2025Rev3000Platform,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			comparer := &windowsMatchComparer{Matcher: NewMatcher(tc.hostPlatform)}
+
+			sort.SliceStable(tc.platforms, func(i, j int) bool {
+				return comparer.Less(tc.platforms[i], tc.platforms[j])
+			})
+
+			if tc.platforms[0].OS != tc.wantPlatform.OS || tc.platforms[0].OSVersion != tc.wantPlatform.OSVersion {
+				t.Errorf("Platform mismatch, want %q/%q, got %q/%q", tc.wantPlatform.OS, tc.wantPlatform.OSVersion, tc.platforms[0].OS, tc.platforms[0].OSVersion)
+			}
+		})
+	}
+
 }
