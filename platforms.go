@@ -65,9 +65,11 @@
 // While the OCI platform specifications provide a tool for components to
 // specify structured information, user input typically doesn't need the full
 // context and much can be inferred. To solve this problem, we introduced
-// "specifiers". A specifier has the format
-// `<os>|<arch>|<os>/<arch>[/<variant>]`.  The user can provide either the
-// operating system or the architecture or both.
+// "specifiers". A specifier has the format:
+//
+//	<os>[(<osVersion>)]|<arch>|<os>/<arch>[/<variant>]
+//
+// The user can provide either the operating system or the architecture or both.
 //
 // An example of a common specifier is `linux/amd64`. If the host has a default
 // of runtime that matches this, the user can simply provide the component that
