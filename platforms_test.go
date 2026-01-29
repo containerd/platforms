@@ -379,6 +379,18 @@ func TestParseSelector(t *testing.T) {
 			formatted:   path.Join("linux(+gpu+simd)", defaultArch, defaultVariant),
 			useV2Format: true,
 		},
+		{
+			input: "linux(+unsorted+erofs)",
+			expected: specs.Platform{
+				OS:           "linux",
+				OSVersion:    "",
+				OSFeatures:   []string{"unsorted", "erofs"},
+				Architecture: defaultArch,
+				Variant:      defaultVariant,
+			},
+			formatted:   path.Join("linux(+erofs+unsorted)", defaultArch, defaultVariant),
+			useV2Format: true,
+		},
 	} {
 		t.Run(testcase.input, func(t *testing.T) {
 			if testcase.skip {

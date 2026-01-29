@@ -114,6 +114,7 @@ import (
 	"path"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -327,8 +328,13 @@ func FormatAll(platform specs.Platform) string {
 	}
 
 	osOptions := platform.OSVersion
-	for _, feature := range platform.OSFeatures {
-		osOptions += "+" + feature
+	features := platform.OSFeatures
+	if !slices.IsSorted(features) {
+		features = slices.Clone(features)
+		slices.Sort(features)
+	}
+	if len(features) > 0 {
+		osOptions += "+" + strings.Join(features, "+")
 	}
 	if osOptions != "" {
 		OSAndVersion := fmt.Sprintf("%s(%s)", platform.OS, osOptions)
