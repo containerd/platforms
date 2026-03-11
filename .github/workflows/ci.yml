@@ -29,7 +29,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-22.04, macos-13, windows-2022]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - uses: actions/setup-go@v5
@@ -50,7 +50,7 @@ jobs:
   project:
     name: Project Checks
     if: github.repository == 'containerd/platforms'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
@@ -76,7 +76,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-22.04, macos-13, windows-2022]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
