@@ -142,6 +142,10 @@ type Matcher interface {
 // functionality.
 //
 // Applications should opt to use `Match` over directly parsing specifiers.
+//
+// For OSFeatures, this matcher will match if the platform to match has
+// OSFeatures which are a subset of the OSFeatures of the platform
+// provided to NewMatcher.
 func NewMatcher(platform specs.Platform) Matcher {
 	m := &matcher{
 		Platform: Normalize(platform),
@@ -177,10 +181,39 @@ type matcher struct {
 
 func (m *matcher) Match(platform specs.Platform) bool {
 	normalized := Normalize(platform)
-	return m.OS == normalized.OS &&
+	if m.OS == normalized.OS &&
 		m.Architecture == normalized.Architecture &&
 		m.Variant == normalized.Variant &&
-		m.matchOSVersion(platform)
+		m.matchOSVersion(platform) {
+		if len(normalized.OSFeatures) == 0 {
+			return true
+		}
+		if len(m.OSFeatures) >= len(normalized.OSFeatures) {
+			// Ensure that normalized.OSFeatures is a subset of
+			// m.OSFeatures
+			j := 0
+			for _, feature := range normalized.OSFeatures {
+				found := false
+				for ; j < len(m.OSFeatures); j++ {
+					if feature == m.OSFeatures[j] {
+						found = true
+						j++
+						break
+					}
+					// Since both lists are ordered, if the feature is less
+					// than what is seen, it is not in the list
+					if feature < m.OSFeatures[j] {
+						return false
+					}
+				}
+				if !found {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
 }
 
 func (m *matcher) matchOSVersion(platform specs.Platform) bool {
@@ -350,6 +383,11 @@ func FormatAll(platform specs.Platform) string {
 func Normalize(platform specs.Platform) specs.Platform {
 	platform.OS = normalizeOS(platform.OS)
 	platform.Architecture, platform.Variant = normalizeArch(platform.Architecture, platform.Variant)
+	if len(platform.OSFeatures) > 0 {
+		platform.OSFeatures = slices.Clone(platform.OSFeatures)
+		slices.Sort(platform.OSFeatures)
+		platform.OSFeatures = slices.Compact(platform.OSFeatures)
+	}
 
 	return platform
 }
