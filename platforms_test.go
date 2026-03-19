@@ -391,6 +391,40 @@ func TestParseSelector(t *testing.T) {
 			formatted:   path.Join("linux(+erofs+unsorted)", defaultArch, defaultVariant),
 			useV2Format: true,
 		},
+		{
+			input: "windows(10.0.17763%2Bbuild.42)",
+			expected: specs.Platform{
+				OS:           "windows",
+				OSVersion:    "10.0.17763+build.42",
+				Architecture: defaultArch,
+				Variant:      defaultVariant,
+			},
+			formatted:   path.Join("windows(10.0.17763%2Bbuild.42)", defaultArch, defaultVariant),
+			useV2Format: true,
+		},
+		{
+			input: "windows(10.0.17763%2Bbuild.42+win32k)",
+			expected: specs.Platform{
+				OS:           "windows",
+				OSVersion:    "10.0.17763+build.42",
+				OSFeatures:   []string{"win32k"},
+				Architecture: defaultArch,
+				Variant:      defaultVariant,
+			},
+			formatted:   path.Join("windows(10.0.17763%2Bbuild.42+win32k)", defaultArch, defaultVariant),
+			useV2Format: true,
+		},
+		{
+			input: "windows(50%25done)",
+			expected: specs.Platform{
+				OS:           "windows",
+				OSVersion:    "50%done",
+				Architecture: defaultArch,
+				Variant:      defaultVariant,
+			},
+			formatted:   path.Join("windows(50%25done)", defaultArch, defaultVariant),
+			useV2Format: true,
+		},
 	} {
 		t.Run(testcase.input, func(t *testing.T) {
 			if testcase.skip {
@@ -441,6 +475,73 @@ func TestParseSelector(t *testing.T) {
 				if FormatAll(reparsed) != formatted {
 					t.Fatalf("normalized output did not survive the round trip: %v != %v", FormatAll(reparsed), formatted)
 				}
+			}
+		})
+	}
+}
+
+func TestFormatAllEncoding(t *testing.T) {
+	for _, testcase := range []struct {
+		platform specs.Platform
+		expected string
+	}{
+		{
+			platform: specs.Platform{OS: "windows", OSVersion: "10.0.17763+build.42", Architecture: "amd64"},
+			expected: "windows(10.0.17763%2Bbuild.42)/amd64",
+		},
+		{
+			platform: specs.Platform{OS: "windows", OSVersion: "10.0.17763+build.42", OSFeatures: []string{"win32k"}, Architecture: "amd64"},
+			expected: "windows(10.0.17763%2Bbuild.42+win32k)/amd64",
+		},
+		{
+			platform: specs.Platform{OS: "windows", OSVersion: "50%done", Architecture: "amd64"},
+			expected: "windows(50%25done)/amd64",
+		},
+		{
+			platform: specs.Platform{OS: "windows", OSVersion: "1.0(beta)", Architecture: "amd64"},
+			expected: "windows(1.0%28beta%29)/amd64",
+		},
+		{
+			platform: specs.Platform{OS: "windows", OSVersion: "a/b", Architecture: "amd64"},
+			expected: "windows(a%2Fb)/amd64",
+		},
+		{
+			// no special characters, no encoding needed
+			platform: specs.Platform{OS: "windows", OSVersion: "10.0.17763", Architecture: "amd64"},
+			expected: "windows(10.0.17763)/amd64",
+		},
+		{
+			// feature with + in the name
+			platform: specs.Platform{OS: "linux", OSFeatures: []string{"feat+v2"}, Architecture: "amd64"},
+			expected: "linux(+feat%2Bv2)/amd64",
+		},
+		{
+			// feature with % in the name
+			platform: specs.Platform{OS: "linux", OSFeatures: []string{"100%gpu"}, Architecture: "amd64"},
+			expected: "linux(+100%25gpu)/amd64",
+		},
+		{
+			// version and feature both with special characters
+			platform: specs.Platform{OS: "windows", OSVersion: "10.0+build", OSFeatures: []string{"feat+1"}, Architecture: "amd64"},
+			expected: "windows(10.0%2Bbuild+feat%2B1)/amd64",
+		},
+	} {
+		t.Run(testcase.expected, func(t *testing.T) {
+			formatted := FormatAll(testcase.platform)
+			if formatted != testcase.expected {
+				t.Fatalf("unexpected format: %q != %q", formatted, testcase.expected)
+			}
+
+			// verify round-trip
+			reparsed, err := Parse(formatted)
+			if err != nil {
+				t.Fatalf("error parsing formatted output: %v", err)
+			}
+			if reparsed.OSVersion != testcase.platform.OSVersion {
+				t.Fatalf("OSVersion did not survive round trip: %q != %q", reparsed.OSVersion, testcase.platform.OSVersion)
+			}
+			if !reflect.DeepEqual(reparsed.OSFeatures, testcase.platform.OSFeatures) {
+				t.Fatalf("OSFeatures did not survive round trip: %v != %v", reparsed.OSFeatures, testcase.platform.OSFeatures)
 			}
 		})
 	}

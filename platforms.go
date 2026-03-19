@@ -111,6 +111,7 @@ package platforms
 
 import (
 	"fmt"
+	"net/url"
 	"path"
 	"regexp"
 	"runtime"
@@ -123,7 +124,7 @@ import (
 
 var (
 	specifierRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
-	osRe        = regexp.MustCompile(`^([A-Za-z0-9_-]+)(?:\(([A-Za-z0-9_.-]*)((?:\+[A-Za-z0-9_.-]+)*)\))?$`)
+	osRe        = regexp.MustCompile(`^([A-Za-z0-9_-]+)(?:\(([A-Za-z0-9_.%-]*)((?:\+[A-Za-z0-9_.%-]+)*)\))?$`)
 )
 
 // Platform is a type alias for convenience, so there is no need to import image-spec package everywhere.
@@ -273,9 +274,20 @@ func Parse(specifier string) (specs.Platform, error) {
 			}
 
 			p.OS = normalizeOS(osOptions[1])
-			p.OSVersion = osOptions[2]
+			osVersion, err := decodeOSOption(osOptions[2])
+			if err != nil {
+				return specs.Platform{}, fmt.Errorf("%q has an invalid OS version %q: %w", specifier, osOptions[2], err)
+			}
+			p.OSVersion = osVersion
 			if osOptions[3] != "" {
-				p.OSFeatures = strings.Split(osOptions[3][1:], "+")
+				rawFeatures := strings.Split(osOptions[3][1:], "+")
+				p.OSFeatures = make([]string, len(rawFeatures))
+				for i, f := range rawFeatures {
+					p.OSFeatures[i], err = decodeOSOption(f)
+					if err != nil {
+						return specs.Platform{}, fmt.Errorf("%q has an invalid OS feature %q: %w", specifier, f, err)
+					}
+				}
 			}
 		} else {
 			if !specifierRe.MatchString(part) {
@@ -360,20 +372,42 @@ func FormatAll(platform specs.Platform) string {
 		return "unknown"
 	}
 
-	osOptions := platform.OSVersion
+	osOptions := encodeOSOption(platform.OSVersion)
 	features := platform.OSFeatures
 	if !slices.IsSorted(features) {
 		features = slices.Clone(features)
 		slices.Sort(features)
 	}
-	if len(features) > 0 {
-		osOptions += "+" + strings.Join(features, "+")
+	for _, f := range features {
+		osOptions += "+" + encodeOSOption(f)
 	}
 	if osOptions != "" {
 		OSAndVersion := fmt.Sprintf("%s(%s)", platform.OS, osOptions)
 		return path.Join(OSAndVersion, platform.Architecture, platform.Variant)
 	}
 	return path.Join(platform.OS, platform.Architecture, platform.Variant)
+}
+
+// osOptionReplacer encodes characters in OS option values (version and
+// features) that are ambiguous with the format syntax. The percent sign
+// must be replaced first to avoid double-encoding.
+var osOptionReplacer = strings.NewReplacer(
+	"%", "%25",
+	"+", "%2B",
+	"(", "%28",
+	")", "%29",
+	"/", "%2F",
+)
+
+func encodeOSOption(v string) string {
+	return osOptionReplacer.Replace(v)
+}
+
+func decodeOSOption(v string) (string, error) {
+	if strings.Contains(v, "%") {
+		return url.PathUnescape(v)
+	}
+	return v, nil
 }
 
 // Normalize validates and translate the platform to the canonical value.
