@@ -617,8 +617,6 @@ func FuzzPlatformsParse(f *testing.F) {
 }
 
 func BenchmarkParseOSOptions(b *testing.B) {
-	maxFeatures := 16
-
 	benchmarks := []struct {
 		doc   string
 		input string
@@ -653,8 +651,6 @@ func BenchmarkParseOSOptions(b *testing.B) {
 }
 
 func BenchmarkFormatAllOSFeatures(b *testing.B) {
-	maxFeatures := 16
-
 	benchmarks := []struct {
 		doc      string
 		platform specs.Platform
