@@ -633,7 +633,7 @@ func BenchmarkParseOSOptions(b *testing.B) {
 	b.ResetTimer()
 	for _, bm := range benchmarks {
 		b.Run(bm.doc, func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				_, _ = Parse(bm.input)
 			}
 		})
@@ -668,7 +668,7 @@ func BenchmarkFormatAllOSFeatures(b *testing.B) {
 			platform: specs.Platform{
 				OS: "linux",
 				OSFeatures: func() (out []string) {
-					for i := 0; i <= maxFeatures; i++ {
+					for range maxFeatures {
 						out = append(out, "feature")
 					}
 					return out
@@ -725,7 +725,7 @@ func BenchmarkFormatAllOSFeatures(b *testing.B) {
 	b.ResetTimer()
 	for _, bm := range benchmarks {
 		b.Run(bm.doc, func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				_ = FormatAll(bm.platform)
 			}
 		})

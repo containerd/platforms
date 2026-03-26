@@ -372,18 +372,19 @@ func FormatAll(platform specs.Platform) string {
 		return "unknown"
 	}
 
-	osOptions := encodeOSOption(platform.OSVersion)
+	var b strings.Builder
+	b.WriteString(encodeOSOption(platform.OSVersion))
 	features := platform.OSFeatures
 	if !slices.IsSorted(features) {
 		features = slices.Clone(features)
 		slices.Sort(features)
 	}
 	for _, f := range features {
-		osOptions += "+" + encodeOSOption(f)
+		b.WriteString("+" + encodeOSOption(f))
 	}
-	if osOptions != "" {
-		OSAndVersion := fmt.Sprintf("%s(%s)", platform.OS, osOptions)
-		return path.Join(OSAndVersion, platform.Architecture, platform.Variant)
+	if b.Len() > 0 {
+		osAndVersion := platform.OS + "(" + b.String() + ")"
+		return path.Join(osAndVersion, platform.Architecture, platform.Variant)
 	}
 	return path.Join(platform.OS, platform.Architecture, platform.Variant)
 }
