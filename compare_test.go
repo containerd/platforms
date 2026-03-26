@@ -595,6 +595,126 @@ func TestOnlyStrict(t *testing.T) {
 	}
 }
 
+func TestOnlyOS(t *testing.T) {
+	for _, tc := range []struct {
+		platform string
+		matches  map[bool][]string
+	}{
+		{
+			platform: "linux/amd64",
+			matches: map[bool][]string{
+				true: {
+					"linux/amd64",
+					"linux/arm64",
+					"linux/arm/v7",
+					"linux/386",
+				},
+				false: {
+					"windows/amd64",
+					"darwin/arm64",
+				},
+			},
+		},
+		{
+			platform: "windows(10.0.17763)/amd64",
+			matches: map[bool][]string{
+				true: {
+					"windows/amd64",
+					"windows/arm64",
+					"windows(10.0.17763)/amd64",
+					"windows(10.0.17763)/arm64",
+				},
+				false: {
+					"linux/amd64",
+				},
+			},
+		},
+		{
+			platform: "linux(+gpu)/amd64",
+			matches: map[bool][]string{
+				true: {
+					"linux/arm64",
+					"linux(+gpu)/amd64",
+				},
+				false: {
+					"windows/amd64",
+					"linux(+gpu+simd)/amd64",
+				},
+			},
+		},
+	} {
+		testcase := tc
+		t.Run(testcase.platform, func(t *testing.T) {
+			p, err := Parse(testcase.platform)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m := OnlyOS(p)
+			for shouldMatch, platforms := range testcase.matches {
+				for _, matchPlatform := range platforms {
+					mp, err := Parse(matchPlatform)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if match := m.Match(mp); shouldMatch != match {
+						t.Errorf("OnlyOS(%q).Match(%q) should return %v, but returns %v", testcase.platform, matchPlatform, shouldMatch, match)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestOnlyOSLess(t *testing.T) {
+	for _, tc := range []struct {
+		platform  string
+		platforms []string
+		expected  []string
+	}{
+		{
+			// Exact architecture match ranks first, others are unordered but before non-OS matches
+			platform:  "linux/amd64",
+			platforms: []string{"linux/arm64", "linux/386", "linux/amd64", "windows/amd64"},
+			expected:  []string{"linux/amd64", "linux/arm64", "linux/386", "windows/amd64"},
+		},
+		{
+			// Strict: only exact arch/variant match is preferred
+			platform:  "linux/arm64",
+			platforms: []string{"linux/amd64", "linux/arm/v7", "linux/arm64", "windows/arm64"},
+			expected:  []string{"linux/arm64", "linux/amd64", "linux/arm/v7", "windows/arm64"},
+		},
+		{
+			// Non-matching OS should always sort last
+			platform:  "linux/amd64",
+			platforms: []string{"windows/amd64", "darwin/amd64", "linux/arm64", "linux/amd64"},
+			expected:  []string{"linux/amd64", "linux/arm64", "windows/amd64", "darwin/amd64"},
+		},
+	} {
+		testcase := tc
+		t.Run(testcase.platform, func(t *testing.T) {
+			p, err := Parse(testcase.platform)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mc := OnlyOS(p)
+			platforms, err := ParseAll(testcase.platforms)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sort.Slice(platforms, func(i, j int) bool {
+				return mc.Less(platforms[i], platforms[j])
+			})
+			actual := make([]string, len(platforms))
+			for i, ps := range platforms {
+				actual[i] = FormatAll(ps)
+			}
+			if !reflect.DeepEqual(testcase.expected, actual) {
+				t.Errorf("Wrong platform order:\nExpected: %#v\nActual:   %#v", testcase.expected, actual)
+			}
+		})
+	}
+}
+
 func TestCompareOSFeatures(t *testing.T) {
 	for _, tc := range []struct {
 		platform  string
