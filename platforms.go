@@ -373,20 +373,50 @@ func FormatAll(platform specs.Platform) string {
 	}
 
 	var b strings.Builder
-	b.WriteString(encodeOSOption(platform.OSVersion))
-	features := platform.OSFeatures
+	b.WriteString(platform.OS)
+	osv := encodeOSOption(platform.OSVersion)
+	formatted := formatOSFeatures(platform.OSFeatures)
+	if osv != "" || formatted != "" {
+		b.Grow(len(osv) + len(formatted) + 3) // parens + maybe '+'
+		b.WriteByte('(')
+		if osv != "" {
+			b.WriteString(osv)
+		}
+		if formatted != "" {
+			b.WriteByte('+')
+			b.WriteString(formatted)
+		}
+		b.WriteByte(')')
+	}
+
+	return path.Join(b.String(), platform.Architecture, platform.Variant)
+}
+
+func formatOSFeatures(features []string) string {
+	if len(features) == 0 {
+		return ""
+	}
+
 	if !slices.IsSorted(features) {
 		features = slices.Clone(features)
 		slices.Sort(features)
 	}
+	var b strings.Builder
+	var wrote bool
+	var prev string
 	for _, f := range features {
-		b.WriteString("+" + encodeOSOption(f))
+		if f == "" || f == prev {
+			// skip empty and duplicate values
+			continue
+		}
+		prev = f
+		if wrote {
+			b.WriteByte('+')
+		}
+		b.WriteString(encodeOSOption(f))
+		wrote = true
 	}
-	if b.Len() > 0 {
-		osAndVersion := platform.OS + "(" + b.String() + ")"
-		return path.Join(osAndVersion, platform.Architecture, platform.Variant)
-	}
-	return path.Join(platform.OS, platform.Architecture, platform.Variant)
+	return b.String()
 }
 
 // osOptionReplacer encodes characters in OS option values (version and
