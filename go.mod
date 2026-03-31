@@ -1,6 +1,6 @@
 module github.com/containerd/platforms
 
-go 1.21
+go 1.24
 
 require (
 	github.com/containerd/log v0.1.0

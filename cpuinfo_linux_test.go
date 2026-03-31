@@ -46,7 +46,6 @@ func TestCPUVariant(t *testing.T) {
 }
 
 func TestGetCPUVariantFromArch(t *testing.T) {
-
 	for _, testcase := range []struct {
 		name        string
 		input       string
@@ -127,13 +126,11 @@ func TestGetCPUVariantFromArch(t *testing.T) {
 						t.Fatalf("Expect to get variant: %v, however %v returned", testcase.output, variant)
 					}
 				}
-
 			} else {
 				if !errors.Is(err, testcase.expectedErr) {
 					t.Fatalf("Expect to get error: %v, however error %v returned", testcase.expectedErr, err)
 				}
 			}
 		})
-
 	}
 }

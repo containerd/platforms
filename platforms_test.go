@@ -20,6 +20,8 @@ import (
 	"path"
 	"reflect"
 	"runtime"
+	"strconv"
+	"strings"
 	"testing"
 
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
@@ -578,6 +580,20 @@ func TestParseSelectorInvalid(t *testing.T) {
 	}
 }
 
+func TestFormatAllSkipsEmptyOSFeatures(t *testing.T) {
+	p := specs.Platform{
+		OS:           "linux",
+		Architecture: "amd64",
+		OSFeatures:   []string{"", "gpu", "", "simd"},
+	}
+
+	formatted := FormatAll(p)
+	expected := "linux(+gpu+simd)/amd64"
+	if formatted != expected {
+		t.Fatalf("unexpected format: %q != %q", formatted, expected)
+	}
+}
+
 func FuzzPlatformsParse(f *testing.F) {
 	f.Add("linux/amd64")
 	f.Fuzz(func(t *testing.T, s string) {
@@ -586,4 +602,132 @@ func FuzzPlatformsParse(f *testing.F) {
 			t.Errorf("either %+v or %+v must be nil", err, pf)
 		}
 	})
+}
+
+func BenchmarkParseOSOptions(b *testing.B) {
+	maxFeatures := 16
+
+	benchmarks := []struct {
+		doc   string
+		input string
+	}{
+		{
+			doc:   "valid windows version and feature",
+			input: "windows(10.0.17763+win32k)/amd64",
+		},
+		{
+			doc:   "valid but lengthy features",
+			input: "linux(+" + strings.Repeat("+feature", maxFeatures) + ")/amd64",
+		},
+		{
+			doc:   "exploding plus chain",
+			input: "linux(" + strings.Repeat("+", 64*1024) + ")/amd64",
+		},
+		{
+			doc:   "kernel config feature blob",
+			input: "linux(+CONFIG_" + strings.Repeat("FOO=y_", 16*1024) + "BAR)/amd64",
+		},
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for _, bm := range benchmarks {
+		b.Run(bm.doc, func(b *testing.B) {
+			for range b.N {
+				_, _ = Parse(bm.input)
+			}
+		})
+	}
+}
+
+func BenchmarkFormatAllOSFeatures(b *testing.B) {
+	maxFeatures := 16
+
+	benchmarks := []struct {
+		doc      string
+		platform specs.Platform
+	}{
+		{
+			doc: "plain linux amd64",
+			platform: specs.Platform{
+				OS:           "linux",
+				Architecture: "amd64",
+			},
+		},
+		{
+			doc: "windows version and feature",
+			platform: specs.Platform{
+				OS:           "windows",
+				OSVersion:    "10.0.17763",
+				OSFeatures:   []string{"win32k"},
+				Architecture: "amd64",
+			},
+		},
+		{
+			doc: "valid but lengthy features",
+			platform: specs.Platform{
+				OS: "linux",
+				OSFeatures: func() (out []string) {
+					for range maxFeatures {
+						out = append(out, "feature")
+					}
+					return out
+				}(),
+				Architecture: "amd64",
+			},
+		},
+		{
+			doc: "skips empty features",
+			platform: specs.Platform{
+				OS:           "linux",
+				OSFeatures:   []string{"", "gpu", "", "simd"},
+				Architecture: "amd64",
+			},
+		},
+		{
+			doc: "kernel config feature blob",
+			platform: specs.Platform{
+				OS:           "linux",
+				OSFeatures:   []string{"CONFIG_" + strings.Repeat("FOO_", 16*1024) + "BAR"},
+				Architecture: "amd64",
+			},
+		},
+		{
+			doc: "many kernel config features with empties",
+			platform: specs.Platform{
+				OS: "linux",
+				OSFeatures: func() []string {
+					n := 1024
+					out := make([]string, n)
+					for i := range out {
+						if i%10 == 0 {
+							out[i] = "" // simulate bad data
+						} else {
+							out[i] = "CONFIG_FOO_" + strconv.Itoa(i)
+						}
+					}
+					return out
+				}(),
+				Architecture: "amd64",
+			},
+		},
+		{
+			doc: "too many features",
+			platform: specs.Platform{
+				OS:           "linux",
+				OSFeatures:   make([]string, maxFeatures+1),
+				Architecture: "amd64",
+			},
+		},
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for _, bm := range benchmarks {
+		b.Run(bm.doc, func(b *testing.B) {
+			for range b.N {
+				_ = FormatAll(bm.platform)
+			}
+		})
+	}
 }
