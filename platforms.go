@@ -156,6 +156,11 @@ func NewMatcher(platform specs.Platform) Matcher {
 		m.osvM = &windowsVersionMatcher{
 			windowsOSVersion: getWindowsOSVersion(platform.OSVersion),
 		}
+
+		// In prior versions, the win32k os feature was not considered for matching,
+		// strip out the win32k feature for comparison
+		var stripped Matcher = windowsStripFeaturesMatcher{m}
+
 		// In prior versions, on windows, the returned matcher implements a
 		// MatchComprarer interface.
 		// This preserves that behavior for backwards compatibility.
@@ -165,8 +170,9 @@ func NewMatcher(platform specs.Platform) Matcher {
 		// It was likely intended to be used in `Ordered` but it is not since
 		// `Less` that is implemented here ends up getting masked due to wrapping.
 		if runtime.GOOS == "windows" {
-			return &windowsMatchComparer{m}
+			return &windowsMatchComparer{stripped}
 		}
+		return stripped
 	}
 	return m
 }
