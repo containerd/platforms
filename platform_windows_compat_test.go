@@ -91,6 +91,28 @@ func Test_PlatformCompat(t *testing.T) {
 			ctrOS:     v22H2Win11,
 			shouldRun: true,
 		},
+		// A WS2025-generation host with a build past the latest LTSC (e.g.
+		// 26200) must still accept WS2022 containers per the stable ABI policy.
+		{
+			hostOS:    26200,
+			ctrOS:     ltsc2022,
+			shouldRun: true,
+		},
+		{
+			hostOS:    26200,
+			ctrOS:     ltsc2025,
+			shouldRun: true,
+		},
+		{
+			hostOS:    26200,
+			ctrOS:     v22H2Win11,
+			shouldRun: true,
+		},
+		{
+			hostOS:    26200,
+			ctrOS:     ltsc2019,
+			shouldRun: false,
+		},
 	} {
 		t.Run(fmt.Sprintf("Host_%d_Ctr_%d", tc.hostOS, tc.ctrOS), func(t *testing.T) {
 			hostOSVersion := windowsOSVersion{
@@ -143,6 +165,13 @@ func Test_PlatformOrder(t *testing.T) {
 		OSFeatures:   nil,
 		Variant:      "",
 	}
+	ws2025PatchedPlatform := specs.Platform{
+		Architecture: "amd64",
+		OS:           "windows",
+		OSVersion:    "10.0.26200.0",
+		OSFeatures:   nil,
+		Variant:      "",
+	}
 
 	tt := []struct {
 		name         string
@@ -167,6 +196,12 @@ func Test_PlatformOrder(t *testing.T) {
 			hostPlatform: ws2025Platform,
 			platforms:    []specs.Platform{linuxPlatform, ws2022Platform, ws2025Rev3000Platform},
 			wantPlatform: ws2025Rev3000Platform,
+		},
+		{
+			name:         "Windows Server 2025 host past latest LTSC should still accept 2022",
+			hostPlatform: ws2025PatchedPlatform,
+			platforms:    []specs.Platform{linuxPlatform, ws2022Platform},
+			wantPlatform: ws2022Platform,
 		},
 	}
 
