@@ -32,6 +32,7 @@ func TestDefault(t *testing.T) {
 		OS:           runtime.GOOS,
 		Architecture: runtime.GOARCH,
 		OSVersion:    fmt.Sprintf("%d.%d.%d", major, minor, build),
+		OSFeatures:   detectWin32k(),
 		Variant:      cpuVariant(),
 	}
 	p := DefaultSpec()
