@@ -127,6 +127,18 @@ var (
 	osRe        = regexp.MustCompile(`^([A-Za-z0-9_-]+)(?:\(([A-Za-z0-9_.%-]*)((?:\+[A-Za-z0-9_.%-]+)*)\))?$`)
 )
 
+const (
+	maxFeatures     = 16  // maxFeatures is the maximum number of features allowed.
+	maxFeatureLen   = 64  // maxFeatureLen is the maximum length per feature.
+	maxOSOptionsLen = 256 // maxOSOptionsLen is the maximum length for OS options (OS-version + options).
+)
+
+var (
+	errTooManyFeatures  = fmt.Errorf("too many os features: %w", errInvalidArgument)
+	errFeatureTooLong   = fmt.Errorf("os feature too long: %w", errInvalidArgument)
+	errOSOptionsTooLong = fmt.Errorf("os options too long: %w", errInvalidArgument)
+)
+
 // Platform is a type alias for convenience, so there is no need to import image-spec package everywhere.
 type Platform = specs.Platform
 
@@ -352,12 +364,21 @@ func parseOSFeatures(s string) ([]string, error) {
 	if s == "" {
 		return nil, nil
 	}
+	if len(s) > maxOSOptionsLen {
+		return nil, errOSOptionsTooLong
+	}
 
-	var features []string
+	features := make([]string, 0, min(strings.Count(s, "+")+1, maxFeatures))
 	for raw := range strings.SplitSeq(s, "+") {
 		raw = strings.TrimSpace(raw)
 		if raw == "" {
 			return nil, fmt.Errorf("empty os feature: %w", errInvalidArgument)
+		}
+		if len(features) == maxFeatures {
+			return nil, errTooManyFeatures
+		}
+		if len(raw) > maxFeatureLen {
+			return nil, errFeatureTooLong
 		}
 		feature, err := decodeOSOption(raw)
 		if err != nil {
@@ -404,7 +425,7 @@ func FormatAll(platform specs.Platform) string {
 	var b strings.Builder
 	b.WriteString(platform.OS)
 	osv := encodeOSOption(platform.OSVersion)
-	formatted := formatOSFeatures(platform.OSFeatures)
+	formatted, _ := formatOSFeatures(osv, platform.OSFeatures)
 	if osv != "" || formatted != "" {
 		b.Grow(len(osv) + len(formatted) + 3) // parens + maybe '+'
 		b.WriteByte('(')
@@ -421,9 +442,12 @@ func FormatAll(platform specs.Platform) string {
 	return path.Join(b.String(), platform.Architecture, platform.Variant)
 }
 
-func formatOSFeatures(features []string) string {
+func formatOSFeatures(osVersion string, features []string) (string, error) {
 	if len(features) == 0 {
-		return ""
+		return "", nil
+	}
+	if len(features) > maxFeatures {
+		return "", errTooManyFeatures
 	}
 
 	if !slices.IsSorted(features) {
@@ -438,14 +462,21 @@ func formatOSFeatures(features []string) string {
 			// skip empty and duplicate values
 			continue
 		}
+		if len(f) > maxFeatureLen {
+			return "", errFeatureTooLong
+		}
 		prev = f
 		if wrote {
 			b.WriteByte('+')
 		}
-		b.WriteString(encodeOSOption(f))
+		encoded := encodeOSOption(f)
+		if len(osVersion)+b.Len()+len(encoded) > maxOSOptionsLen {
+			return "", errOSOptionsTooLong
+		}
+		b.WriteString(encoded)
 		wrote = true
 	}
-	return b.String()
+	return b.String(), nil
 }
 
 // osOptionReplacer encodes characters in OS option values (version and
