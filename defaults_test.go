@@ -18,7 +18,6 @@ package platforms
 
 import (
 	"reflect"
-	"runtime"
 	"sort"
 	"testing"
 
@@ -137,12 +136,8 @@ func TestWindowsMatchComparerLess(t *testing.T) {
 		OSVersion:    "10.0.17763.1",
 	}
 
-	m := NewMatcher(p)
-	if runtime.GOOS != "windows" {
-		// By default NewMatcher only returns the MatchComparer interface on Windows (which is only for backwards compatibility).
-		// On other platforms, we need to wrap the matcher in a windowsMatchComparer since the test is using it.
-		m = &windowsMatchComparer{m}
-	}
+	// NewMatcher only returns a Matcher; wrap it to get the Less this test exercises.
+	m := MatchComparer(&windowsMatchComparer{NewMatcher(p)})
 	platforms := []imagespec.Platform{
 		{
 			Architecture: "amd64",
@@ -196,7 +191,7 @@ func TestWindowsMatchComparerLess(t *testing.T) {
 		},
 	}
 	sort.SliceStable(platforms, func(i, j int) bool {
-		return m.(MatchComparer).Less(platforms[i], platforms[j])
+		return m.Less(platforms[i], platforms[j])
 	})
 	if !reflect.DeepEqual(platforms, expected) {
 		t.Errorf("expected: %s\nactual  : %s", expected, platforms)
