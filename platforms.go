@@ -105,8 +105,10 @@
 // Similarly, the most common arm64 version v8, and most common amd64 version v1
 // are represented without the variant.
 //
-// While these normalizations are provided, their support on arm platforms has
-// not yet been fully implemented and tested.
+// [Only] resolves variant compatibility beyond exact equality: descending
+// amd64/arm versions, arm64's cross-generation offset between its v8.x and
+// v9.x lines, and any other CPU variant scheme shaped like a number embedded
+// in fixed text (e.g. ppc64le's "powerN", riscv64's "rvaNNu64").
 package platforms
 
 import (
@@ -148,84 +150,69 @@ type Matcher interface {
 // OSFeatures which are a subset of the OSFeatures of the platform
 // provided to NewMatcher.
 func NewMatcher(platform specs.Platform) Matcher {
-	m := &matcher{
+	return &matcher{
 		Platform: Normalize(platform),
 	}
-
-	if platform.OS == "windows" {
-		m.osvM = &windowsVersionMatcher{
-			windowsOSVersion: getWindowsOSVersion(platform.OSVersion),
-		}
-
-		// In prior versions, the win32k os feature was not considered for matching,
-		// strip out the win32k feature for comparison
-		var stripped Matcher = windowsStripFeaturesMatcher{m}
-
-		// In prior versions, on windows, the returned matcher implements a
-		// MatchComprarer interface.
-		// This preserves that behavior for backwards compatibility.
-		//
-		// TODO: This isn't actually used in this package, except for a test case,
-		// which may have been an unintended side of some refactor.
-		// It was likely intended to be used in `Ordered` but it is not since
-		// `Less` that is implemented here ends up getting masked due to wrapping.
-		if runtime.GOOS == "windows" {
-			return &windowsMatchComparer{stripped}
-		}
-		return stripped
-	}
-	return m
-}
-
-type osVerMatcher interface {
-	Match(string) bool
 }
 
 type matcher struct {
 	specs.Platform
-	osvM osVerMatcher
 }
 
 func (m *matcher) Match(platform specs.Platform) bool {
 	normalized := Normalize(platform)
-	if m.OS == normalized.OS &&
+	features := normalized.OSFeatures
+	if m.OS == "windows" {
+		// In prior versions, the win32k os feature was not considered for
+		// matching; strip it out for comparison regardless of the host
+		// platform's own declared features.
+		features = stripWin32kFeature(features)
+	}
+	return m.OS == normalized.OS &&
 		m.Architecture == normalized.Architecture &&
 		m.Variant == normalized.Variant &&
-		m.matchOSVersion(platform) {
-		if len(normalized.OSFeatures) == 0 {
-			return true
-		}
-		if len(m.OSFeatures) >= len(normalized.OSFeatures) {
-			// Ensure that normalized.OSFeatures is a subset of
-			// m.OSFeatures
-			j := 0
-			for _, feature := range normalized.OSFeatures {
-				found := false
-				for ; j < len(m.OSFeatures); j++ {
-					if feature == m.OSFeatures[j] {
-						found = true
-						j++
-						break
-					}
-					// Since both lists are ordered, if the feature is less
-					// than what is seen, it is not in the list
-					if feature < m.OSFeatures[j] {
-						return false
-					}
-				}
-				if !found {
-					return false
-				}
-			}
-			return true
-		}
-	}
-	return false
+		osVersionMatch(m.OS, m.OSVersion, platform.OSVersion) &&
+		osFeaturesSubset(features, m.OSFeatures)
 }
 
-func (m *matcher) matchOSVersion(platform specs.Platform) bool {
-	if m.osvM != nil {
-		return m.osvM.Match(platform.OSVersion)
+// osFeaturesSubset reports whether every feature in want is present in
+// have. Both slices must already be sorted, as Normalize leaves them.
+func osFeaturesSubset(want, have []string) bool {
+	if len(want) == 0 {
+		return true
+	}
+	if len(have) < len(want) {
+		return false
+	}
+	j := 0
+	for _, feature := range want {
+		found := false
+		for ; j < len(have); j++ {
+			if feature == have[j] {
+				found = true
+				j++
+				break
+			}
+			// Since both lists are ordered, if the feature is less
+			// than what is seen, it is not in the list
+			if feature < have[j] {
+				return false
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// osVersionMatch reports whether a candidate declaring osVersion can run on
+// a host with the given hostOS and hostOSVersion. Only Windows has an OS
+// version compatibility rule (see windowsOSVersionMatch); every other OS
+// accepts any (or no) declared version.
+func osVersionMatch(hostOS, hostOSVersion, osVersion string) bool {
+	if hostOS == "windows" {
+		return windowsOSVersionMatch(hostOSVersion, osVersion)
 	}
 	return true
 }
