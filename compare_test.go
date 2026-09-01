@@ -298,6 +298,56 @@ func TestOnly(t *testing.T) {
 				},
 			},
 		},
+		{
+			// v9.8 has no entry in any hardcoded table: it must be handled
+			// arithmetically (Armv9.N always carries the Armv8.(N+5)
+			// baseline, capped at Armv8.9) for it to match at all.
+			platform: "linux/arm64/v9.8",
+			matches: map[bool][]string{
+				true: {
+					"linux/arm64/v9",
+					"linux/arm64/v9.8",
+					"linux/arm64/v8.9", // offset would be v8.13, capped at v8.9
+					"linux/arm",
+				},
+				false: {
+					"linux/arm64/v9.9",
+					"linux/amd64",
+				},
+			},
+		},
+		{
+			platform: "linux/ppc64le/power10",
+			matches: map[bool][]string{
+				true: {
+					"linux/ppc64le", // bare (no variant): least-preferred fallback, still a match
+					"linux/ppc64le/power8",
+					"linux/ppc64le/power9",
+					"linux/ppc64le/power10",
+				},
+				false: {
+					"linux/ppc64le/power11",
+					"linux/amd64",
+					"linux/arm64",
+				},
+			},
+		},
+		{
+			platform: "linux/riscv64/rva23u64",
+			matches: map[bool][]string{
+				true: {
+					"linux/riscv64/rva23u64",
+					"linux/riscv64/rva22u64",
+					"linux/riscv64/rva20u64",
+					"linux/riscv64", // bare fallback
+				},
+				false: {
+					"linux/riscv64/rva24u64",
+					"linux/riscv64/rva20s64", // different profile class (suffix)
+					"linux/amd64",
+				},
+			},
+		},
 	} {
 		testcase := tc
 		t.Run(testcase.platform, func(t *testing.T) {
@@ -720,37 +770,57 @@ func TestCompareOSFeatures(t *testing.T) {
 		platform  string
 		platforms []string
 		expected  []string
+		// expectedOnly overrides expected for the Only comparer specifically,
+		// when it legitimately differs from Ordered/Any/OnlyStrict: those are
+		// built from a caller-supplied platform list and have no notion of
+		// "OS family" at all, so a pair that matches neither has no defined
+		// order between them (an artifact of sort, not a rule). Only, by
+		// contrast, always treats OS compatibility as the dominant axis (see
+		// onlyComparer.Less in compare.go), so between two platforms that
+		// match neither the OS nor the architecture, one with the reference
+		// OS (even with the "wrong" architecture) outranks one with neither.
+		expectedOnly []string
 	}{
 		{
 			"linux/amd64",
 			[]string{"windows/amd64", "linux/amd64", "linux(+other)/amd64", "linux/arm64"},
 			[]string{"linux/amd64", "linux(+other)/amd64", "windows/amd64", "linux/arm64"},
+			[]string{"linux/amd64", "linux(+other)/amd64", "linux/arm64", "windows/amd64"},
 		},
 		{
 			"linux(+none)/amd64",
 			[]string{"windows/amd64", "linux/amd64", "linux/arm64", "linux(+other)/amd64"},
 			[]string{"linux/amd64", "linux(+other)/amd64", "windows/amd64", "linux/arm64"},
+			[]string{"linux/amd64", "linux(+other)/amd64", "linux/arm64", "windows/amd64"},
 		},
 		{
 			"linux(+other)/amd64",
 			[]string{"windows/amd64", "linux/amd64", "linux/arm64", "linux(+other)/amd64"},
 			[]string{"linux(+other)/amd64", "linux/amd64", "windows/amd64", "linux/arm64"},
+			[]string{"linux(+other)/amd64", "linux/amd64", "linux/arm64", "windows/amd64"},
 		},
 		{
 			"linux(+af+other+zf)/amd64",
 			[]string{"windows/amd64", "linux/amd64", "linux/arm64", "linux(+other)/amd64"},
 			[]string{"linux(+other)/amd64", "linux/amd64", "windows/amd64", "linux/arm64"},
+			[]string{"linux(+other)/amd64", "linux/amd64", "linux/arm64", "windows/amd64"},
 		},
 		{
 			"linux(+f1+f2)/amd64",
 			[]string{"linux/amd64", "linux(+f2)/amd64", "linux(+f1)/amd64", "linux(+f1+f2)/amd64"},
 			[]string{"linux(+f1+f2)/amd64", "linux(+f2)/amd64", "linux(+f1)/amd64", "linux/amd64"},
+			nil,
 		},
 		{
-			// This test should likely fail and be updated when os version is considered for linux
 			"linux(7.2+other)/amd64",
 			[]string{"linux/amd64", "linux(+other)/amd64", "linux(7.1)/amd64", "linux(7.2+other)/amd64"},
 			[]string{"linux(+other)/amd64", "linux(7.2+other)/amd64", "linux/amd64", "linux(7.1)/amd64"},
+			// Only's Less considers OS version (via natural sort, for
+			// ranking purposes only — Match still doesn't compare Linux
+			// OS versions at all), so the exact match sorts first,
+			// then the next-highest version, then the two unversioned
+			// candidates tied on version and broken by feature overlap.
+			[]string{"linux(7.2+other)/amd64", "linux(7.1)/amd64", "linux(+other)/amd64", "linux/amd64"},
 		},
 	} {
 		testcase := tc
@@ -762,12 +832,14 @@ func TestCompareOSFeatures(t *testing.T) {
 			}
 
 			for _, stc := range []struct {
-				name string
-				mc   MatchComparer
+				name     string
+				mc       MatchComparer
+				expected []string
 			}{
 				{
-					name: "only",
-					mc:   Only(p),
+					name:     "only",
+					mc:       Only(p),
+					expected: testcase.expectedOnly,
 				},
 				{
 					name: "only strict",
@@ -783,6 +855,10 @@ func TestCompareOSFeatures(t *testing.T) {
 				},
 			} {
 				mc := stc.mc
+				expected := stc.expected
+				if expected == nil {
+					expected = testcase.expected
+				}
 				testcase := testcase
 				t.Run(stc.name, func(t *testing.T) {
 					p, err := ParseAll(testcase.platforms)
@@ -797,8 +873,8 @@ func TestCompareOSFeatures(t *testing.T) {
 						actual[i] = FormatAll(ps)
 					}
 
-					if !reflect.DeepEqual(testcase.expected, actual) {
-						t.Errorf("Wrong platform order:\nExpected: %#v\nActual:   %#v", testcase.expected, actual)
+					if !reflect.DeepEqual(expected, actual) {
+						t.Errorf("Wrong platform order:\nExpected: %#v\nActual:   %#v", expected, actual)
 					}
 				})
 			}

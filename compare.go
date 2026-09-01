@@ -17,9 +17,6 @@
 package platforms
 
 import (
-	"strconv"
-	"strings"
-
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -31,125 +28,179 @@ type MatchComparer interface {
 	Less(specs.Platform, specs.Platform) bool
 }
 
-type platformVersions struct {
-	major []int
-	minor []int
+// Only returns a match comparer for a single platform using default
+// resolution logic for the platform.
+//
+// Match and Less are independent: Match decides compatibility directly
+// (see archMatch, osIdentity, featuresOK) instead of generating and
+// searching every platform that could match, which would be unbounded for
+// some variant schemes (see variant.go). Less is a separate,
+// match-independent sort key biased towards the host's own OS and
+// architecture. Callers wanting the best runnable match should filter with
+// Match before ranking with Less, not sort first and scan for a match.
+func Only(platform specs.Platform) MatchComparer {
+	return &onlyComparer{
+		platform: Normalize(platform),
+	}
 }
 
-var arm64variantToVersion = map[string]platformVersions{
-	"v8":   {[]int{8}, []int{0}},
-	"v8.0": {[]int{8}, []int{0}},
-	"v8.1": {[]int{8}, []int{1}},
-	"v8.2": {[]int{8}, []int{2}},
-	"v8.3": {[]int{8}, []int{3}},
-	"v8.4": {[]int{8}, []int{4}},
-	"v8.5": {[]int{8}, []int{5}},
-	"v8.6": {[]int{8}, []int{6}},
-	"v8.7": {[]int{8}, []int{7}},
-	"v8.8": {[]int{8}, []int{8}},
-	"v8.9": {[]int{8}, []int{9}},
-	"v9":   {[]int{9, 8}, []int{0, 5}},
-	"v9.0": {[]int{9, 8}, []int{0, 5}},
-	"v9.1": {[]int{9, 8}, []int{1, 6}},
-	"v9.2": {[]int{9, 8}, []int{2, 7}},
-	"v9.3": {[]int{9, 8}, []int{3, 8}},
-	"v9.4": {[]int{9, 8}, []int{4, 9}},
-	"v9.5": {[]int{9, 8}, []int{5, 9}},
-	"v9.6": {[]int{9, 8}, []int{6, 9}},
-	"v9.7": {[]int{9, 8}, []int{7, 9}},
+// onlyComparer implements the matching and ranking behavior of Only.
+type onlyComparer struct {
+	platform specs.Platform // normalized reference platform
 }
 
-// platformVector returns an (ordered) vector of appropriate specs.Platform
-// objects to try matching for the given platform object (see platforms.Only).
-func platformVector(platform specs.Platform) []specs.Platform {
-	vector := []specs.Platform{platform}
+// osIdentity reports whether p's OS name and OS version are ones
+// c.platform could run. There's no "native vs. fallback OS" concept in Only
+// (that would be for something like running Linux containers on Windows or
+// FreeBSD), so an OS identity mismatch is an absolute disqualifier.
+func (c *onlyComparer) osIdentity(p specs.Platform) bool {
+	normalized := Normalize(p)
+	if c.platform.OS != normalized.OS {
+		return false
+	}
+	return osVersionMatch(c.platform.OS, c.platform.OSVersion, p.OSVersion)
+}
 
-	switch platform.Architecture {
+// featuresOK reports whether p's OS features (ignoring win32k on Windows,
+// which is missing on Nano Server) are a subset of c.platform's.
+func (c *onlyComparer) featuresOK(p specs.Platform) bool {
+	features := c.stripIgnoredFeatures(Normalize(p).OSFeatures)
+	return osFeaturesSubset(features, c.platform.OSFeatures)
+}
+
+// featureOverlap returns how many of p's OS features are also declared by
+// c.platform. Used only by Less, to rank two candidates that are otherwise
+// tied: a candidate's extra features should only count in its favor to the
+// extent the host actually declares them.
+func (c *onlyComparer) featureOverlap(p specs.Platform) int {
+	features := c.stripIgnoredFeatures(Normalize(p).OSFeatures)
+	have := c.platform.OSFeatures
+	n, j := 0, 0
+	for _, f := range features {
+		for j < len(have) && have[j] < f {
+			j++
+		}
+		if j < len(have) && have[j] == f {
+			n++
+			j++
+		}
+	}
+	return n
+}
+
+func (c *onlyComparer) stripIgnoredFeatures(features []string) []string {
+	if c.platform.OS == "windows" {
+		return stripWin32kFeature(features)
+	}
+	return features
+}
+
+// fallbackArch returns the recognized cross-architecture fallback for
+// hostArch (386 for amd64, arm for arm64), or "" if hostArch has none. Both
+// archMatch and archRank need this same pairing, one for compatibility and
+// one for ranking, so it's kept in one place.
+func fallbackArch(hostArch string) string {
+	switch hostArch {
 	case "amd64":
-		if amd64Version, err := strconv.Atoi(strings.TrimPrefix(platform.Variant, "v")); err == nil && amd64Version > 1 {
-			for amd64Version--; amd64Version >= 1; amd64Version-- {
-				vector = append(vector, specs.Platform{
-					Architecture: platform.Architecture,
-					OS:           platform.OS,
-					OSVersion:    platform.OSVersion,
-					OSFeatures:   platform.OSFeatures,
-					Variant:      "v" + strconv.Itoa(amd64Version),
-				})
-			}
-		}
-		vector = append(vector, specs.Platform{
-			Architecture: "386",
-			OS:           platform.OS,
-			OSVersion:    platform.OSVersion,
-			OSFeatures:   platform.OSFeatures,
-		})
-	case "arm":
-		if armVersion, err := strconv.Atoi(strings.TrimPrefix(platform.Variant, "v")); err == nil && armVersion > 5 {
-			for armVersion--; armVersion >= 5; armVersion-- {
-				vector = append(vector, specs.Platform{
-					Architecture: platform.Architecture,
-					OS:           platform.OS,
-					OSVersion:    platform.OSVersion,
-					OSFeatures:   platform.OSFeatures,
-					Variant:      "v" + strconv.Itoa(armVersion),
-				})
-			}
-		}
+		return "386"
 	case "arm64":
-		variant := platform.Variant
-		if variant == "" {
-			variant = "v8"
-		}
+		return "arm"
+	}
+	return ""
+}
 
-		vector = []specs.Platform{} // Reset vector, the first variant will be added in loop.
-		arm64Versions, ok := arm64variantToVersion[variant]
-		if !ok {
-			break
+// archMatch reports whether p's architecture and variant are compatible
+// with c.platform's: either the same architecture with a compatible
+// variant, or a recognized cross-architecture fallback (see fallbackArch)
+// with a compatible variant.
+//
+// For amd64, floors at v1 (see numberedVariantMatch) and also matches 386
+// via its fallback. For arm, floors at v5, so arm/v8 also matches arm/v7,
+// arm/v6 and arm/v5 (and so on down the chain). For arm64, see
+// arm64VariantMatch for its cross-generation offset. Any other architecture
+// falls back to genericVariantMatch's prefix/number/suffix comparison (e.g.
+// ppc64le's "powerN", riscv64's "rvaNNu64").
+func (c *onlyComparer) archMatch(p specs.Platform) bool {
+	normalized := Normalize(p)
+	if normalized.Architecture == c.platform.Architecture {
+		switch c.platform.Architecture {
+		case "amd64":
+			return numberedVariantMatch(c.platform.Variant, normalized.Variant, "v1")
+		case "arm":
+			return numberedVariantMatch(c.platform.Variant, normalized.Variant, "v5")
+		case "arm64":
+			return arm64VariantMatch(c.platform.Variant, normalized.Variant)
+		default:
+			return genericVariantMatch(c.platform.Variant, normalized.Variant)
 		}
-		for i, major := range arm64Versions.major {
-			for minor := arm64Versions.minor[i]; minor >= 0; minor-- {
-				arm64Variant := "v" + strconv.Itoa(major) + "." + strconv.Itoa(minor)
-				if minor == 0 {
-					arm64Variant = "v" + strconv.Itoa(major)
-				}
-				vector = append(vector, specs.Platform{
-					Architecture: "arm64",
-					OS:           platform.OS,
-					OSVersion:    platform.OSVersion,
-					OSFeatures:   platform.OSFeatures,
-					Variant:      arm64Variant,
-				})
-			}
-		}
-
-		// All arm64/v8.x and arm64/v9.x are compatible with arm/v8 (32-bits) and below.
-		// There's no arm64 v9 variant, so it's normalized to v8.
-		if strings.HasPrefix(variant, "v8") || strings.HasPrefix(variant, "v9") {
-			variant = "v8"
-		}
-		vector = append(vector, platformVector(specs.Platform{
-			Architecture: "arm",
-			OS:           platform.OS,
-			OSVersion:    platform.OSVersion,
-			OSFeatures:   platform.OSFeatures,
-			Variant:      variant,
-		})...)
+	}
+	if normalized.Architecture != fallbackArch(c.platform.Architecture) {
+		return false
 	}
 
-	return vector
+	switch c.platform.Architecture {
+	case "amd64":
+		return true // 386 has no variant to check; it's a match-or-nothing fallback.
+	case "arm64":
+		return numberedVariantMatch("v8", normalized.Variant, "v5")
+	}
+	return false
 }
 
-// Only returns a match comparer for a single platform
-// using default resolution logic for the platform.
-//
-// For arm64/v9.x, will also match arm64/v9.{0..x-1} and arm64/v8.{0..x+5}
-// For arm64/v8.x, will also match arm64/v8.{0..x-1}
-// For arm/v8, will also match arm/v7, arm/v6 and arm/v5
-// For arm/v7, will also match arm/v6 and arm/v5
-// For arm/v6, will also match arm/v5
-// For amd64, will also match 386
-func Only(platform specs.Platform) MatchComparer {
-	return Ordered(platformVector(Normalize(platform))...)
+func (c *onlyComparer) Match(p specs.Platform) bool {
+	return c.osIdentity(p) && c.featuresOK(p) && c.archMatch(p)
+}
+
+// archRank returns how preferable arch is, for a host declaring
+// hostArch: 2 for the host's own architecture, 1 for its recognized
+// cross-architecture fallback (see fallbackArch), or 0 otherwise (ties are
+// broken alphabetically by Less). Unlike archMatch, this doesn't check
+// variant compatibility at all — it's a plain preference between
+// architecture names, used only for ranking.
+func archRank(hostArch, arch string) int {
+	switch {
+	case arch == hostArch:
+		return 2
+	case arch != "" && arch == fallbackArch(hostArch):
+		return 1
+	default:
+		return 0
+	}
+}
+
+func (c *onlyComparer) Less(p1, p2 specs.Platform) bool {
+	n1, n2 := Normalize(p1), Normalize(p2)
+
+	// Prefer the host's own OS over any other; otherwise alphabetically.
+	native1, native2 := n1.OS == c.platform.OS, n2.OS == c.platform.OS
+	if native1 != native2 {
+		return native1
+	}
+	if n1.OS != n2.OS {
+		return naturalLess(n1.OS, n2.OS)
+	}
+
+	// Prefer the host's own architecture, then its recognized fallback
+	// architecture, then alphabetically.
+	a1, a2 := archRank(c.platform.Architecture, n1.Architecture), archRank(c.platform.Architecture, n2.Architecture)
+	if a1 != a2 {
+		return a1 > a2
+	}
+	if n1.Architecture != n2.Architecture {
+		return naturalLess(n1.Architecture, n2.Architecture)
+	}
+
+	// Then variant and OS version, newest/highest first.
+	if n1.Variant != n2.Variant {
+		return naturalLess(n2.Variant, n1.Variant)
+	}
+	if p1.OSVersion != p2.OSVersion {
+		return naturalLess(p2.OSVersion, p1.OSVersion)
+	}
+
+	// Tied on everything above: prefer the one whose OS features overlap
+	// more with what the host actually declares.
+	return c.featureOverlap(p1) > c.featureOverlap(p2)
 }
 
 // OnlyOS returns a match comparer that matches only platforms with the same
@@ -160,25 +211,14 @@ func OnlyOS(platform specs.Platform) MatchComparer {
 	normalized := Normalize(platform)
 	return onlyOSComparer{
 		platform: normalized,
-		osvM:     newOSVersionMatcher(normalized),
 		archOrder: orderedPlatformComparer{
 			matchers: []Matcher{NewMatcher(normalized)},
 		},
 	}
 }
 
-func newOSVersionMatcher(platform specs.Platform) osVerMatcher {
-	if platform.OS == "windows" {
-		return &windowsVersionMatcher{
-			windowsOSVersion: getWindowsOSVersion(platform.OSVersion),
-		}
-	}
-	return nil
-}
-
 type onlyOSComparer struct {
 	platform  specs.Platform
-	osvM      osVerMatcher
 	archOrder orderedPlatformComparer
 }
 
@@ -187,34 +227,10 @@ func (c onlyOSComparer) matchOS(platform specs.Platform) bool {
 	if c.platform.OS != normalized.OS {
 		return false
 	}
-	if c.osvM != nil {
-		if !c.osvM.Match(platform.OSVersion) {
-			return false
-		}
+	if !osVersionMatch(c.platform.OS, c.platform.OSVersion, platform.OSVersion) {
+		return false
 	}
-	if len(normalized.OSFeatures) > 0 {
-		if len(c.platform.OSFeatures) < len(normalized.OSFeatures) {
-			return false
-		}
-		j := 0
-		for _, feature := range normalized.OSFeatures {
-			found := false
-			for ; j < len(c.platform.OSFeatures); j++ {
-				if feature == c.platform.OSFeatures[j] {
-					found = true
-					j++
-					break
-				}
-				if feature < c.platform.OSFeatures[j] {
-					return false
-				}
-			}
-			if !found {
-				return false
-			}
-		}
-	}
-	return true
+	return osFeaturesSubset(normalized.OSFeatures, c.platform.OSFeatures)
 }
 
 func (c onlyOSComparer) Match(platform specs.Platform) bool {

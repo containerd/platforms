@@ -18,8 +18,6 @@ package platforms
 
 import (
 	"slices"
-	"strconv"
-	"strings"
 
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -43,7 +41,7 @@ const (
 	// rs5 (version 1809, codename "Redstone 5") corresponds to Windows Server
 	// 2019 (ltsc2019), and Windows 10 (October 2018 Update).
 	rs5 = 17763
-	// ltsc2019 (Windows Server 2019) is an alias for [RS5].
+	// ltsc2019 (Windows Server 2019) is an alias for [rs5].
 	ltsc2019 = rs5
 
 	// v21H2Server corresponds to Windows Server 2022 (ltsc2022).
@@ -113,50 +111,43 @@ func checkWindowsHostAndContainerCompat(host, ctr windowsOSVersion) bool {
 	return supportedLTSCRelease <= ctr.Build && ctr.Build <= host.Build
 }
 
+// getWindowsOSVersion parses the "<major>.<minor>.<build>[.<revision>]" form
+// of a Windows OS version (e.g. "10.0.17763.1"), using the same
+// parseVersionedVariant that parses every other dotted/numbered variant in
+// this package — only the major/minor/build field mapping and their bit
+// widths (matching the real Windows version struct) are specific to
+// Windows here. Anything from the revision field onward is ignored, same as
+// the Windows API this mirrors.
 func getWindowsOSVersion(osVersionPrefix string) windowsOSVersion {
-	if strings.Count(osVersionPrefix, ".") < 2 {
+	v, ok := parseVersionedVariant(osVersionPrefix)
+	if !ok || v.prefix != "" || v.suffix != "" || len(v.numbers) < 3 {
 		return windowsOSVersion{}
 	}
-
-	major, extra, _ := strings.Cut(osVersionPrefix, ".")
-	minor, extra, _ := strings.Cut(extra, ".")
-	build, _, _ := strings.Cut(extra, ".")
-
-	majorVersion, err := strconv.ParseUint(major, 10, 8)
-	if err != nil {
-		return windowsOSVersion{}
-	}
-
-	minorVersion, err := strconv.ParseUint(minor, 10, 8)
-	if err != nil {
-		return windowsOSVersion{}
-	}
-	buildNumber, err := strconv.ParseUint(build, 10, 16)
-	if err != nil {
+	major, minor, build := v.numbers[0], v.numbers[1], v.numbers[2]
+	// parseVersionedVariant only ever produces non-negative numbers (they
+	// come from a run of ASCII digits), but check explicitly anyway so the
+	// range check below is a complete bound, not just an upper one.
+	if major < 0 || major > 0xff || minor < 0 || minor > 0xff || build < 0 || build > 0xffff {
 		return windowsOSVersion{}
 	}
 
 	return windowsOSVersion{
-		MajorVersion: uint8(majorVersion),
-		MinorVersion: uint8(minorVersion),
-		Build:        uint16(buildNumber),
+		MajorVersion: uint8(major),  // #nosec G115 -- range-checked above
+		MinorVersion: uint8(minor),  // #nosec G115 -- range-checked above
+		Build:        uint16(build), // #nosec G115 -- range-checked above
 	}
 }
 
-type windowsVersionMatcher struct {
-	windowsOSVersion
-}
-
-func (m windowsVersionMatcher) Match(v string) bool {
-	if m.isEmpty() || v == "" {
+// windowsOSVersionMatch reports whether a container declaring OS version v
+// can run on a Windows host declaring hostVersion, per the Windows Server
+// stable-ABI compatibility rules (see checkWindowsHostAndContainerCompat). A
+// missing version on either side means "don't care", and always matches.
+func windowsOSVersionMatch(hostVersion, v string) bool {
+	host := getWindowsOSVersion(hostVersion)
+	if host == (windowsOSVersion{}) || v == "" {
 		return true
 	}
-	osv := getWindowsOSVersion(v)
-	return checkWindowsHostAndContainerCompat(m.windowsOSVersion, osv)
-}
-
-func (m windowsVersionMatcher) isEmpty() bool {
-	return m.MajorVersion == 0 && m.MinorVersion == 0 && m.Build == 0
+	return checkWindowsHostAndContainerCompat(host, getWindowsOSVersion(v))
 }
 
 type windowsMatchComparer struct {
@@ -171,13 +162,12 @@ func (c *windowsMatchComparer) Less(p1, p2 specs.Platform) bool {
 	return m1 && !m2
 }
 
-type windowsStripFeaturesMatcher struct {
-	Matcher
-}
-
-func (m windowsStripFeaturesMatcher) Match(p specs.Platform) bool {
-	if i := slices.Index(p.OSFeatures, "win32k"); i >= 0 {
-		p.OSFeatures = slices.Delete(slices.Clone(p.OSFeatures), i, i+1)
+// stripWin32kFeature removes "win32k" from features, if present, since it's
+// missing on Nano Server and so is ignored for matching purposes. Returns
+// features unmodified if "win32k" isn't present.
+func stripWin32kFeature(features []string) []string {
+	if i := slices.Index(features, "win32k"); i >= 0 {
+		return slices.Delete(slices.Clone(features), i, i+1)
 	}
-	return m.Matcher.Match(p)
+	return features
 }
