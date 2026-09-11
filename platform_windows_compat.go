@@ -82,7 +82,7 @@ func checkWindowsHostAndContainerCompat(host, ctr windowsOSVersion) bool {
 		return false
 	}
 
-	// If host is < WS 2022, exact version match is required
+	// Before WS2022, exact build matching is required.
 	if host.Build < ltsc2022 {
 		return host.Build == ctr.Build
 	}
@@ -91,20 +91,16 @@ func checkWindowsHostAndContainerCompat(host, ctr windowsOSVersion) bool {
 	// ABI policy, every host from LTSC N up to (but not including) LTSC N+1 can
 	// run containers from LTSC N-1 up to the host build.
 	//
-	// So we find the largest LTSC <= host.Build, then step one entry back to
+	// Find the largest LTSC <= host.Build, then step one entry back to
 	// get the floor. If host.Build is past the latest LTSC in the list
 	// (e.g. a 26200 host, which is in the WS2025 generation), the floor is
 	// still the previous LTSC (20348), not the latest LTSC itself.
 	//
-	// If host is the very first LTSC (or no entry matches, which is impossible
-	// here since we already checked host.Build >= ltsc2022), use that LTSC as
-	// the floor.
-	var supportedLTSCRelease uint16 = ltsc2022
-	for i := len(compatLTSCReleases) - 1; i >= 0; i-- {
-		if host.Build >= compatLTSCReleases[i] {
-			if i == 0 {
-				supportedLTSCRelease = compatLTSCReleases[i]
-			} else {
+	// Default to the first LTSC when the matching release has no predecessor.
+	supportedLTSCRelease := compatLTSCReleases[0]
+	for i, release := range slices.Backward(compatLTSCReleases) {
+		if host.Build >= release {
+			if i > 0 {
 				supportedLTSCRelease = compatLTSCReleases[i-1]
 			}
 			break
