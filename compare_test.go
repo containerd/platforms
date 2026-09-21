@@ -371,6 +371,83 @@ func TestOnly(t *testing.T) {
 	}
 }
 
+func TestOnlyLess(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		host   string
+		p1, p2 string
+		want   bool // Only(host).Less(p1, p2)
+	}{
+		{
+			// A non-native OS should never outrank the native OS.
+			name: "native OS always outranks a non-native one",
+			host: "linux/amd64",
+			p1:   "windows/amd64",
+			p2:   "linux/amd64",
+			want: false,
+		},
+		{
+			// Neither OS is native: fall back to alphabetical order.
+			name: "non-native OSes break ties alphabetically",
+			host: "linux/amd64",
+			p1:   "darwin/amd64",
+			p2:   "windows/amd64",
+			want: true, // "darwin" < "windows"
+		},
+		{
+			// Neither architecture is the host's own or its fallback
+			// (see fallbackArch): fall back to alphabetical order.
+			name: "unranked architectures break ties alphabetically",
+			host: "linux/amd64",
+			p1:   "linux/arm64",
+			p2:   "linux/ppc64le",
+			want: true, // "arm64" < "ppc64le"
+		},
+		{
+			// Same architecture, different variant: the higher variant
+			// outranks the lower one.
+			name: "same architecture prefers the higher variant",
+			host: "linux/amd64",
+			p1:   "linux/arm/v7",
+			p2:   "linux/arm/v8",
+			want: false,
+		},
+		{
+			// The host's recognized fallback architecture (see
+			// fallbackArch) outranks an architecture that's neither the
+			// host's own nor its fallback.
+			name: "fallback architecture outranks an unranked one",
+			host: "linux/amd64",
+			p1:   "linux/386",
+			p2:   "linux/arm64",
+			want: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			host, err := Parse(tc.host)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p1, err := Parse(tc.p1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p2, err := Parse(tc.p2)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			mc := Only(host)
+			if got := mc.Less(p1, p2); got != tc.want {
+				t.Errorf("Only(%q).Less(%q, %q) = %v, want %v", tc.host, tc.p1, tc.p2, got, tc.want)
+			}
+			if got := mc.Less(p2, p1); got != !tc.want {
+				t.Errorf("Only(%q).Less(%q, %q) = %v, want %v", tc.host, tc.p2, tc.p1, got, !tc.want)
+			}
+		})
+	}
+}
+
 func TestOnlyStrict(t *testing.T) {
 	for _, tc := range []struct {
 		platform string
@@ -676,6 +753,7 @@ func TestOnlyOS(t *testing.T) {
 				},
 				false: {
 					"linux/amd64",
+					"windows(10.0.17762)/amd64", // pre-WS2022 host requires an exact build match
 				},
 			},
 		},
