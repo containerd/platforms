@@ -127,6 +127,18 @@ var (
 	osRe        = regexp.MustCompile(`^([A-Za-z0-9_-]+)(?:\(([A-Za-z0-9_.%-]*)((?:\+[A-Za-z0-9_.%-]+)*)\))?$`)
 )
 
+// validateSpecifierComponent checks that s is a valid platform specifier
+// component, excluding "." and ".." which would be cleaned by path.Join.
+func validateSpecifierComponent(s string) error {
+	if s == "." || s == ".." {
+		return fmt.Errorf(`%q must not be "." or "..": %w`, s, errInvalidArgument)
+	}
+	if !specifierRe.MatchString(s) {
+		return fmt.Errorf("platform specifier component must match %q: %w", specifierRe.String(), errInvalidArgument)
+	}
+	return nil
+}
+
 // Platform is a type alias for convenience, so there is no need to import image-spec package everywhere.
 type Platform = specs.Platform
 
@@ -292,8 +304,8 @@ func Parse(specifier string) (specs.Platform, error) {
 				}
 			}
 		} else {
-			if !specifierRe.MatchString(part) {
-				return specs.Platform{}, fmt.Errorf("%q is an invalid component of %q: platform specifier component must match %q: %w", part, specifier, specifierRe.String(), errInvalidArgument)
+			if err := validateSpecifierComponent(part); err != nil {
+				return specs.Platform{}, fmt.Errorf("%q is an invalid component of %q: %w", part, specifier, err)
 			}
 		}
 	}
