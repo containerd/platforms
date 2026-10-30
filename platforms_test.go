@@ -17,6 +17,7 @@
 package platforms
 
 import (
+	"errors"
 	"path"
 	"reflect"
 	"runtime"
@@ -563,6 +564,18 @@ func TestParseSelectorInvalid(t *testing.T) {
 			input: "linux/arm/", // trailing slash
 		},
 		{
+			input: "linux/.", // dot architecture
+		},
+		{
+			input: "linux/..", // dot-dot architecture
+		},
+		{
+			input: "linux/arm/.", // dot variant
+		},
+		{
+			input: "linux/arm/..", // dot-dot variant
+		},
+		{
 			input: "linux /arm", // spaces
 		},
 		{
@@ -727,6 +740,154 @@ func BenchmarkFormatAllOSFeatures(b *testing.B) {
 		b.Run(bm.doc, func(b *testing.B) {
 			for range b.N {
 				_ = FormatAll(bm.platform)
+			}
+		})
+	}
+}
+
+func TestValidate(t *testing.T) {
+	tests := []struct {
+		name       string
+		platform   specs.Platform
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name:    "empty platform",
+			wantErr: true,
+		},
+		{
+			name:     "missing OS",
+			platform: specs.Platform{Architecture: "amd64"},
+			wantErr:  true,
+		},
+		{
+			name:     "missing architecture",
+			platform: specs.Platform{OS: "linux"},
+			wantErr:  true,
+		},
+		{
+			name:     "linux/amd64",
+			platform: specs.Platform{OS: "linux", Architecture: "amd64"},
+		},
+		{
+			name:     "linux/loong64",
+			platform: specs.Platform{OS: "linux", Architecture: "loong64"},
+		},
+		{
+			name:     "unknown OS and architecture",
+			platform: specs.Platform{OS: "customos", Architecture: "customarch"},
+		},
+		{
+			name:     "OS with underscore and hyphen",
+			platform: specs.Platform{OS: "custom_os-v2", Architecture: "amd64"},
+		},
+		{
+			name:     "variant",
+			platform: specs.Platform{OS: "linux", Architecture: "arm", Variant: "v7"},
+		},
+		{
+			name:     "architecture with dot",
+			platform: specs.Platform{OS: "linux", Architecture: "custom.arch"},
+		},
+		{
+			name:     "architecture with underscore and hyphen",
+			platform: specs.Platform{OS: "linux", Architecture: "custom_arch-v2"},
+		},
+		{
+			name:     "variant with dot",
+			platform: specs.Platform{OS: "linux", Architecture: "arm", Variant: "v7.1"},
+		},
+		{
+			name:       "invalid OS",
+			platform:   specs.Platform{OS: "invalid/os", Architecture: "amd64"},
+			wantErr:    true,
+			wantErrMsg: "must be an OS name matching",
+		},
+		{
+			name:       "OS with whitespace",
+			platform:   specs.Platform{OS: "invalid os", Architecture: "amd64"},
+			wantErr:    true,
+			wantErrMsg: "must be an OS name matching",
+		},
+		{
+			name:       "OS with dot",
+			platform:   specs.Platform{OS: "foo.bar", Architecture: "amd64"},
+			wantErr:    true,
+			wantErrMsg: "must be an OS name matching",
+		},
+		{
+			name:       "OS with version",
+			platform:   specs.Platform{OS: "windows(10.0.17763)", Architecture: "amd64"},
+			wantErr:    true,
+			wantErrMsg: "must be an OS name matching",
+		},
+		{
+			name:       "invalid OS character",
+			platform:   specs.Platform{OS: "linux@", Architecture: "amd64"},
+			wantErr:    true,
+			wantErrMsg: "must be an OS name matching",
+		},
+		{
+			name:     "dot OS",
+			platform: specs.Platform{OS: ".", Architecture: "amd64"},
+			wantErr:  true,
+		},
+		{
+			name:     "dot-dot OS",
+			platform: specs.Platform{OS: "..", Architecture: "amd64"},
+			wantErr:  true,
+		},
+		{
+			name:       "invalid architecture",
+			platform:   specs.Platform{OS: "linux", Architecture: "invalid/arch"},
+			wantErr:    true,
+			wantErrMsg: "must match",
+		},
+		{
+			name:       "dot architecture",
+			platform:   specs.Platform{OS: "linux", Architecture: "."},
+			wantErr:    true,
+			wantErrMsg: `must not be "." or ".."`,
+		},
+		{
+			name:       "dot-dot architecture",
+			platform:   specs.Platform{OS: "linux", Architecture: ".."},
+			wantErr:    true,
+			wantErrMsg: `must not be "." or ".."`,
+		},
+		{
+			name:       "invalid variant",
+			platform:   specs.Platform{OS: "linux", Architecture: "arm", Variant: "invalid/variant"},
+			wantErr:    true,
+			wantErrMsg: "must match",
+		},
+		{
+			name:       "dot variant",
+			platform:   specs.Platform{OS: "linux", Architecture: "arm", Variant: "."},
+			wantErr:    true,
+			wantErrMsg: `must not be "." or ".."`,
+		},
+		{
+			name:       "dot-dot variant",
+			platform:   specs.Platform{OS: "linux", Architecture: "arm", Variant: ".."},
+			wantErr:    true,
+			wantErrMsg: `must not be "." or ".."`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Validate(tc.platform)
+			if tc.wantErr {
+				if !errors.Is(err, errInvalidArgument) {
+					t.Fatalf("Validate(%+v) error = %v, want %v", tc.platform, err, errInvalidArgument)
+				}
+				if tc.wantErrMsg != "" && !strings.Contains(err.Error(), tc.wantErrMsg) {
+					t.Errorf("Validate(%+v) error = %q, want to contain %q", tc.platform, err, tc.wantErrMsg)
+				}
+			} else if err != nil {
+				t.Fatalf("Validate(%+v) unexpected error: %v", tc.platform, err)
 			}
 		})
 	}

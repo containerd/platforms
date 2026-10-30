@@ -127,6 +127,28 @@ var (
 	osRe        = regexp.MustCompile(`^([A-Za-z0-9_-]+)(?:\(([A-Za-z0-9_.%-]*)((?:\+[A-Za-z0-9_.%-]+)*)\))?$`)
 )
 
+// validateOSComponent checks that s is a valid OS name. Unlike other
+// specifier components, OS names do not allow dots or OS options.
+func validateOSComponent(s string) error {
+	m := osRe.FindStringSubmatch(s)
+	if m == nil || m[1] != s {
+		return fmt.Errorf("%q must be an OS name matching [A-Za-z0-9_-]+: %w", s, errInvalidArgument)
+	}
+	return nil
+}
+
+// validateSpecifierComponent checks that s is a valid platform specifier
+// component, excluding "." and ".." which would be cleaned by path.Join.
+func validateSpecifierComponent(s string) error {
+	if s == "." || s == ".." {
+		return fmt.Errorf(`%q must not be "." or "..": %w`, s, errInvalidArgument)
+	}
+	if !specifierRe.MatchString(s) {
+		return fmt.Errorf("platform specifier component must match %q: %w", specifierRe.String(), errInvalidArgument)
+	}
+	return nil
+}
+
 // Platform is a type alias for convenience, so there is no need to import image-spec package everywhere.
 type Platform = specs.Platform
 
@@ -292,8 +314,8 @@ func Parse(specifier string) (specs.Platform, error) {
 				}
 			}
 		} else {
-			if !specifierRe.MatchString(part) {
-				return specs.Platform{}, fmt.Errorf("%q is an invalid component of %q: platform specifier component must match %q: %w", part, specifier, specifierRe.String(), errInvalidArgument)
+			if err := validateSpecifierComponent(part); err != nil {
+				return specs.Platform{}, fmt.Errorf("%q is an invalid component of %q: %w", part, specifier, err)
 			}
 		}
 	}
@@ -484,4 +506,29 @@ func Normalize(platform specs.Platform) specs.Platform {
 	}
 
 	return platform
+}
+
+// Validate checks whether the platform is well-formed.
+//
+// OS and Architecture must be non-empty, and all components must be valid
+// platform specifiers. It does not check whether the platform is supported.
+func Validate(platform specs.Platform) error {
+	if platform.OS == "" {
+		return fmt.Errorf("missing OS: %w", errInvalidArgument)
+	}
+	if platform.Architecture == "" {
+		return fmt.Errorf("missing architecture: %w", errInvalidArgument)
+	}
+	if err := validateOSComponent(platform.OS); err != nil {
+		return fmt.Errorf("invalid OS: %w", err)
+	}
+	if err := validateSpecifierComponent(platform.Architecture); err != nil {
+		return fmt.Errorf("invalid architecture: %w", err)
+	}
+	if platform.Variant != "" {
+		if err := validateSpecifierComponent(platform.Variant); err != nil {
+			return fmt.Errorf("invalid variant: %w", err)
+		}
+	}
+	return nil
 }
