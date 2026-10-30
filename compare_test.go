@@ -23,7 +23,7 @@ import (
 )
 
 func TestOnly(t *testing.T) {
-	for _, tc := range []struct {
+	for _, testcase := range []struct {
 		platform string
 		matches  map[bool][]string
 	}{
@@ -299,7 +299,6 @@ func TestOnly(t *testing.T) {
 			},
 		},
 	} {
-		testcase := tc
 		t.Run(testcase.platform, func(t *testing.T) {
 			p, err := Parse(testcase.platform)
 			if err != nil {
@@ -322,7 +321,7 @@ func TestOnly(t *testing.T) {
 }
 
 func TestOnlyStrict(t *testing.T) {
-	for _, tc := range []struct {
+	for _, testcase := range []struct {
 		platform string
 		matches  map[bool][]string
 	}{
@@ -573,7 +572,6 @@ func TestOnlyStrict(t *testing.T) {
 			},
 		},
 	} {
-		testcase := tc
 		t.Run(testcase.platform, func(t *testing.T) {
 			p, err := Parse(testcase.platform)
 			if err != nil {
@@ -596,7 +594,7 @@ func TestOnlyStrict(t *testing.T) {
 }
 
 func TestOnlyOS(t *testing.T) {
-	for _, tc := range []struct {
+	for _, testcase := range []struct {
 		platform string
 		matches  map[bool][]string
 	}{
@@ -643,7 +641,6 @@ func TestOnlyOS(t *testing.T) {
 			},
 		},
 	} {
-		testcase := tc
 		t.Run(testcase.platform, func(t *testing.T) {
 			p, err := Parse(testcase.platform)
 			if err != nil {
@@ -666,7 +663,7 @@ func TestOnlyOS(t *testing.T) {
 }
 
 func TestOnlyOSLess(t *testing.T) {
-	for _, tc := range []struct {
+	for _, testcase := range []struct {
 		platform  string
 		platforms []string
 		expected  []string
@@ -690,7 +687,6 @@ func TestOnlyOSLess(t *testing.T) {
 			expected:  []string{"linux/amd64", "linux/arm64", "windows/amd64", "darwin/amd64"},
 		},
 	} {
-		testcase := tc
 		t.Run(testcase.platform, func(t *testing.T) {
 			p, err := Parse(testcase.platform)
 			if err != nil {
@@ -716,7 +712,7 @@ func TestOnlyOSLess(t *testing.T) {
 }
 
 func TestCompareOSFeatures(t *testing.T) {
-	for _, tc := range []struct {
+	for _, testcase := range []struct {
 		platform  string
 		platforms []string
 		expected  []string
@@ -753,7 +749,6 @@ func TestCompareOSFeatures(t *testing.T) {
 			[]string{"linux(+other)/amd64", "linux(7.2+other)/amd64", "linux/amd64", "linux(7.1)/amd64"},
 		},
 	} {
-		testcase := tc
 		t.Run(testcase.platform, func(t *testing.T) {
 			t.Parallel()
 			p, err := Parse(testcase.platform)
@@ -783,7 +778,6 @@ func TestCompareOSFeatures(t *testing.T) {
 				},
 			} {
 				mc := stc.mc
-				testcase := testcase
 				t.Run(stc.name, func(t *testing.T) {
 					p, err := ParseAll(testcase.platforms)
 					if err != nil {

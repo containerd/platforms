@@ -121,10 +121,9 @@ func TestGetCPUVariantFromArch(t *testing.T) {
 			if err == nil {
 				if testcase.expectedErr != nil {
 					t.Fatalf("Expect to get error: %v, however no error got", testcase.expectedErr)
-				} else {
-					if variant != testcase.output {
-						t.Fatalf("Expect to get variant: %v, however %v returned", testcase.output, variant)
-					}
+				}
+				if variant != testcase.output {
+					t.Fatalf("Expect to get variant: %v, however %v returned", testcase.output, variant)
 				}
 			} else {
 				if !errors.Is(err, testcase.expectedErr) {
