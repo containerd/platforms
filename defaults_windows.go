@@ -19,10 +19,26 @@ package platforms
 import (
 	"fmt"
 	"runtime"
+	"sync"
 
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"golang.org/x/sys/windows"
 )
+
+var (
+	win32kOnce     sync.Once
+	win32kFeatures []string
+)
+
+func detectWin32k() []string {
+	win32kOnce.Do(func() {
+		user32 := windows.NewLazySystemDLL("user32.dll")
+		if err := user32.Load(); err == nil {
+			win32kFeatures = []string{"win32k"}
+		}
+	})
+	return win32kFeatures
+}
 
 // DefaultSpec returns the current platform's default platform specification.
 func DefaultSpec() specs.Platform {
@@ -31,6 +47,7 @@ func DefaultSpec() specs.Platform {
 		OS:           runtime.GOOS,
 		Architecture: runtime.GOARCH,
 		OSVersion:    fmt.Sprintf("%d.%d.%d", major, minor, build),
+		OSFeatures:   detectWin32k(),
 		// The Variant field will be empty if arch != ARM.
 		Variant: cpuVariant(),
 	}
