@@ -136,6 +136,45 @@ func Test_PlatformCompat(t *testing.T) {
 	}
 }
 
+func TestGetWindowsOSVersion(t *testing.T) {
+	ltsc2019Version := windowsOSVersion{MajorVersion: 10, Build: ltsc2019}
+	for _, tc := range []struct {
+		in       string
+		expected windowsOSVersion
+	}{
+		{"10.0.17763", ltsc2019Version},
+		{"10.0.17763.1", ltsc2019Version},
+		{"10.0.17763.1.2", ltsc2019Version},
+		// The revision field onward is ignored, whatever it contains.
+		{"10.0.17763.1+build.42", ltsc2019Version},
+		{"10.0.17763.abc", ltsc2019Version},
+		{"10.0.17763.", ltsc2019Version},
+		{"", windowsOSVersion{}},
+		{"10.0", windowsOSVersion{}},
+		{"10.0.abc", windowsOSVersion{}},
+		{"10.0.17763+build.42", windowsOSVersion{}},
+		{"10.0.65536", windowsOSVersion{}},
+	} {
+		t.Run(tc.in, func(t *testing.T) {
+			if actual := getWindowsOSVersion(tc.in); actual != tc.expected {
+				t.Fatalf("getWindowsOSVersion(%q) = %+v, expected %+v", tc.in, actual, tc.expected)
+			}
+		})
+	}
+}
+
+func TestWindowsOSVersionMatchRevisionTail(t *testing.T) {
+	// A host version with a non-numeric revision tail must still be parsed (not
+	// treated as "don't care", which would match every container version).
+	const host = "10.0.17763.1+build.42"
+	if !windowsOSVersionMatch(host, "10.0.17763.1") {
+		t.Fatal("expected a matching build to be compatible")
+	}
+	if windowsOSVersionMatch(host, "10.0.20348.1") {
+		t.Fatal("expected an incompatible build to be rejected")
+	}
+}
+
 func Test_PlatformOrder(t *testing.T) {
 	linuxPlatform := specs.Platform{
 		Architecture: "amd64",

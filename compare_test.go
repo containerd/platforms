@@ -36,6 +36,7 @@ func TestOnly(t *testing.T) {
 				},
 				false: {
 					"linux/amd64/v2",
+					"linux/386/custom",
 					"linux/arm/v7",
 					"linux/arm64",
 					"windows/amd64",
@@ -298,6 +299,56 @@ func TestOnly(t *testing.T) {
 				},
 			},
 		},
+		{
+			// v9.8 has no entry in any hardcoded table: it must be handled
+			// arithmetically (Armv9.N always carries the Armv8.(N+5)
+			// baseline, capped at Armv8.9) for it to match at all.
+			platform: "linux/arm64/v9.8",
+			matches: map[bool][]string{
+				true: {
+					"linux/arm64/v9",
+					"linux/arm64/v9.8",
+					"linux/arm64/v8.9", // offset would be v8.13, capped at v8.9
+					"linux/arm",
+				},
+				false: {
+					"linux/arm64/v9.9",
+					"linux/amd64",
+				},
+			},
+		},
+		{
+			platform: "linux/ppc64le/power10",
+			matches: map[bool][]string{
+				true: {
+					"linux/ppc64le", // bare (no variant): least-preferred fallback, still a match
+					"linux/ppc64le/power8",
+					"linux/ppc64le/power9",
+					"linux/ppc64le/power10",
+				},
+				false: {
+					"linux/ppc64le/power11",
+					"linux/amd64",
+					"linux/arm64",
+				},
+			},
+		},
+		{
+			platform: "linux/riscv64/rva23u64",
+			matches: map[bool][]string{
+				true: {
+					"linux/riscv64/rva23u64",
+					"linux/riscv64/rva22u64",
+					"linux/riscv64/rva20u64",
+					"linux/riscv64", // bare fallback
+				},
+				false: {
+					"linux/riscv64/rva24u64",
+					"linux/riscv64/rva20s64", // different profile class (suffix)
+					"linux/amd64",
+				},
+			},
+		},
 	} {
 		t.Run(testcase.platform, func(t *testing.T) {
 			p, err := Parse(testcase.platform)
@@ -315,6 +366,83 @@ func TestOnly(t *testing.T) {
 						t.Errorf("Only(%q).Match(%q) should return %v, but returns %v", testcase.platform, matchPlatform, shouldMatch, match)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestOnlyLess(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		host   string
+		p1, p2 string
+		want   bool // Only(host).Less(p1, p2)
+	}{
+		{
+			// A non-native OS should never outrank the native OS.
+			name: "native OS always outranks a non-native one",
+			host: "linux/amd64",
+			p1:   "windows/amd64",
+			p2:   "linux/amd64",
+			want: false,
+		},
+		{
+			// Neither OS is native: fall back to alphabetical order.
+			name: "non-native OSes break ties alphabetically",
+			host: "linux/amd64",
+			p1:   "darwin/amd64",
+			p2:   "windows/amd64",
+			want: true, // "darwin" < "windows"
+		},
+		{
+			// Neither architecture is the host's own or its fallback
+			// (see fallbackArch): fall back to alphabetical order.
+			name: "unranked architectures break ties alphabetically",
+			host: "linux/amd64",
+			p1:   "linux/arm64",
+			p2:   "linux/ppc64le",
+			want: true, // "arm64" < "ppc64le"
+		},
+		{
+			// Same architecture, different variant: the higher variant
+			// outranks the lower one.
+			name: "same architecture prefers the higher variant",
+			host: "linux/amd64",
+			p1:   "linux/arm/v7",
+			p2:   "linux/arm/v8",
+			want: false,
+		},
+		{
+			// The host's recognized fallback architecture (see
+			// fallbackArch) outranks an architecture that's neither the
+			// host's own nor its fallback.
+			name: "fallback architecture outranks an unranked one",
+			host: "linux/amd64",
+			p1:   "linux/386",
+			p2:   "linux/arm64",
+			want: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			host, err := Parse(tc.host)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p1, err := Parse(tc.p1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p2, err := Parse(tc.p2)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			mc := Only(host)
+			if got := mc.Less(p1, p2); got != tc.want {
+				t.Errorf("Only(%q).Less(%q, %q) = %v, want %v", tc.host, tc.p1, tc.p2, got, tc.want)
+			}
+			if got := mc.Less(p2, p1); got != !tc.want {
+				t.Errorf("Only(%q).Less(%q, %q) = %v, want %v", tc.host, tc.p2, tc.p1, got, !tc.want)
 			}
 		})
 	}
@@ -624,6 +752,7 @@ func TestOnlyOS(t *testing.T) {
 				},
 				false: {
 					"linux/amd64",
+					"windows(10.0.17762)/amd64", // pre-WS2022 host requires an exact build match
 				},
 			},
 		},
@@ -716,37 +845,57 @@ func TestCompareOSFeatures(t *testing.T) {
 		platform  string
 		platforms []string
 		expected  []string
+		// expectedOnly overrides expected for the Only comparer specifically,
+		// when it legitimately differs from Ordered/Any/OnlyStrict: those are
+		// built from a caller-supplied platform list and have no notion of
+		// "OS family" at all, so a pair that matches neither has no defined
+		// order between them (an artifact of sort, not a rule). Only, by
+		// contrast, always treats OS compatibility as the dominant axis (see
+		// onlyComparer.Less in compare.go), so between two platforms that
+		// match neither the OS nor the architecture, one with the reference
+		// OS (even with the "wrong" architecture) outranks one with neither.
+		expectedOnly []string
 	}{
 		{
 			"linux/amd64",
 			[]string{"windows/amd64", "linux/amd64", "linux(+other)/amd64", "linux/arm64"},
 			[]string{"linux/amd64", "linux(+other)/amd64", "windows/amd64", "linux/arm64"},
+			[]string{"linux/amd64", "linux(+other)/amd64", "linux/arm64", "windows/amd64"},
 		},
 		{
 			"linux(+none)/amd64",
 			[]string{"windows/amd64", "linux/amd64", "linux/arm64", "linux(+other)/amd64"},
 			[]string{"linux/amd64", "linux(+other)/amd64", "windows/amd64", "linux/arm64"},
+			[]string{"linux/amd64", "linux(+other)/amd64", "linux/arm64", "windows/amd64"},
 		},
 		{
 			"linux(+other)/amd64",
 			[]string{"windows/amd64", "linux/amd64", "linux/arm64", "linux(+other)/amd64"},
 			[]string{"linux(+other)/amd64", "linux/amd64", "windows/amd64", "linux/arm64"},
+			[]string{"linux(+other)/amd64", "linux/amd64", "linux/arm64", "windows/amd64"},
 		},
 		{
 			"linux(+af+other+zf)/amd64",
 			[]string{"windows/amd64", "linux/amd64", "linux/arm64", "linux(+other)/amd64"},
 			[]string{"linux(+other)/amd64", "linux/amd64", "windows/amd64", "linux/arm64"},
+			[]string{"linux(+other)/amd64", "linux/amd64", "linux/arm64", "windows/amd64"},
 		},
 		{
 			"linux(+f1+f2)/amd64",
 			[]string{"linux/amd64", "linux(+f2)/amd64", "linux(+f1)/amd64", "linux(+f1+f2)/amd64"},
 			[]string{"linux(+f1+f2)/amd64", "linux(+f2)/amd64", "linux(+f1)/amd64", "linux/amd64"},
+			nil,
 		},
 		{
-			// This test should likely fail and be updated when os version is considered for linux
 			"linux(7.2+other)/amd64",
 			[]string{"linux/amd64", "linux(+other)/amd64", "linux(7.1)/amd64", "linux(7.2+other)/amd64"},
 			[]string{"linux(+other)/amd64", "linux(7.2+other)/amd64", "linux/amd64", "linux(7.1)/amd64"},
+			// Only's Less considers OS version (via natural sort, for
+			// ranking purposes only — Match still doesn't compare Linux
+			// OS versions at all), so the exact match sorts first,
+			// then the next-highest version, then the two unversioned
+			// candidates tied on version and broken by feature overlap.
+			[]string{"linux(7.2+other)/amd64", "linux(7.1)/amd64", "linux(+other)/amd64", "linux/amd64"},
 		},
 	} {
 		t.Run(testcase.platform, func(t *testing.T) {
@@ -757,12 +906,14 @@ func TestCompareOSFeatures(t *testing.T) {
 			}
 
 			for _, stc := range []struct {
-				name string
-				mc   MatchComparer
+				name     string
+				mc       MatchComparer
+				expected []string
 			}{
 				{
-					name: "only",
-					mc:   Only(p),
+					name:     "only",
+					mc:       Only(p),
+					expected: testcase.expectedOnly,
 				},
 				{
 					name: "only strict",
@@ -777,22 +928,24 @@ func TestCompareOSFeatures(t *testing.T) {
 					mc:   Any(p),
 				},
 			} {
-				mc := stc.mc
+				if stc.expected == nil {
+					stc.expected = testcase.expected
+				}
 				t.Run(stc.name, func(t *testing.T) {
 					p, err := ParseAll(testcase.platforms)
 					if err != nil {
 						t.Fatal(err)
 					}
 					sort.Slice(p, func(i, j int) bool {
-						return mc.Less(p[i], p[j])
+						return stc.mc.Less(p[i], p[j])
 					})
 					actual := make([]string, len(p))
 					for i, ps := range p {
 						actual[i] = FormatAll(ps)
 					}
 
-					if !reflect.DeepEqual(testcase.expected, actual) {
-						t.Errorf("Wrong platform order:\nExpected: %#v\nActual:   %#v", testcase.expected, actual)
+					if !reflect.DeepEqual(stc.expected, actual) {
+						t.Errorf("Wrong platform order:\nExpected: %#v\nActual:   %#v", stc.expected, actual)
 					}
 				})
 			}
