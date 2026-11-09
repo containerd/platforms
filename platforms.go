@@ -141,6 +141,10 @@ func validateOSComponent(s string) error {
 	return nil
 }
 
+func validateOSOption(s string) bool {
+	return osRe.MatchString("os(" + encodeOSOption(s) + ")")
+}
+
 // validateSpecifierComponent checks that s is a valid platform specifier
 // component, excluding "." and ".." which would be cleaned by path.Join.
 func validateSpecifierComponent(s string) error {
@@ -513,6 +517,14 @@ func Validate(platform specs.Platform) error {
 	}
 	if err := validateOSComponent(platform.OS); err != nil {
 		return fmt.Errorf("invalid OS: %w", err)
+	}
+	if platform.OSVersion != "" && !validateOSOption(platform.OSVersion) {
+		return fmt.Errorf("invalid OS version %q: %w", platform.OSVersion, errInvalidArgument)
+	}
+	for _, feature := range platform.OSFeatures {
+		if feature == "" || !validateOSOption(feature) {
+			return fmt.Errorf("invalid OS feature %q: %w", feature, errInvalidArgument)
+		}
 	}
 	if err := validateSpecifierComponent(platform.Architecture); err != nil {
 		return fmt.Errorf("invalid architecture: %w", err)

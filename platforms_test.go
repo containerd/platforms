@@ -839,6 +839,60 @@ func TestValidate(t *testing.T) {
 			wantErr:  true,
 		},
 		{
+			name:     "OS version",
+			platform: specs.Platform{OS: "windows", Architecture: "amd64", OSVersion: "10.0.17763"},
+		},
+		{
+			name:     "OS features",
+			platform: specs.Platform{OS: "windows", Architecture: "amd64", OSFeatures: []string{"win32k", "gpu"}},
+		},
+		{
+			name:     "OS version with escaped characters",
+			platform: specs.Platform{OS: "windows", Architecture: "amd64", OSVersion: "10.0+test/1"},
+		},
+		{
+			name:     "OS feature with escaped characters",
+			platform: specs.Platform{OS: "windows", Architecture: "amd64", OSFeatures: []string{"gpu+compute/1"}},
+		},
+		{
+			name:     "dot OS version",
+			platform: specs.Platform{OS: "windows", Architecture: "amd64", OSVersion: "."},
+		},
+		{
+			name:     "dot-dot OS feature",
+			platform: specs.Platform{OS: "windows", Architecture: "amd64", OSFeatures: []string{".."}},
+		},
+		{
+			name:       "OS version with whitespace",
+			platform:   specs.Platform{OS: "windows", Architecture: "amd64", OSVersion: "10.0 bad"},
+			wantErr:    true,
+			wantErrMsg: "invalid OS version",
+		},
+		{
+			name:       "OS version with invalid character",
+			platform:   specs.Platform{OS: "windows", Architecture: "amd64", OSVersion: "10.0@"},
+			wantErr:    true,
+			wantErrMsg: "invalid OS version",
+		},
+		{
+			name:       "OS feature with invalid character",
+			platform:   specs.Platform{OS: "windows", Architecture: "amd64", OSFeatures: []string{"gpu@"}},
+			wantErr:    true,
+			wantErrMsg: "invalid OS feature",
+		},
+		{
+			name:       "OS feature with whitespace",
+			platform:   specs.Platform{OS: "windows", Architecture: "amd64", OSFeatures: []string{"gpu compute"}},
+			wantErr:    true,
+			wantErrMsg: "invalid OS feature",
+		},
+		{
+			name:       "empty OS feature",
+			platform:   specs.Platform{OS: "windows", Architecture: "amd64", OSFeatures: []string{""}},
+			wantErr:    true,
+			wantErrMsg: "invalid OS feature",
+		},
+		{
 			name:       "invalid architecture",
 			platform:   specs.Platform{OS: "linux", Architecture: "invalid/arch"},
 			wantErr:    true,
