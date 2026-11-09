@@ -557,10 +557,22 @@ func TestParseSelectorInvalid(t *testing.T) {
 			input: "", // empty
 		},
 		{
+			input: ".", // dot
+		},
+		{
+			input: "..", // dot-dot
+		},
+		{
 			input: "/linux/arm", // leading slash
 		},
 		{
 			input: "linux/arm/", // trailing slash
+		},
+		{
+			input: "./arm", // dot OS
+		},
+		{
+			input: "../arm", // dot-dot OS
 		},
 		{
 			input: "linux/.", // dot architecture
