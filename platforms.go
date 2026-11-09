@@ -133,10 +133,10 @@ var (
 // component, excluding "." and ".." which would be cleaned by path.Join.
 func validateSpecifierComponent(s string) error {
 	if s == "." || s == ".." {
-		return fmt.Errorf(`%q must not be "." or "..": %w`, s, errInvalidArgument)
+		return fmt.Errorf(`must not be "." or "..": %w`, errInvalidArgument)
 	}
 	if !specifierRe.MatchString(s) {
-		return fmt.Errorf("platform specifier component must match %q: %w", specifierRe.String(), errInvalidArgument)
+		return fmt.Errorf("must match %q: %w", specifierRe.String(), errInvalidArgument)
 	}
 	return nil
 }
